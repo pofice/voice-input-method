@@ -5,9 +5,10 @@
 
 # 安装
 无需创建虚拟环境,直接安装即可
-
+```sh
 pip install -U openai-whisper
-
+```
 装好依赖后即可运行
-
+```sh
 python qt.py
+```
