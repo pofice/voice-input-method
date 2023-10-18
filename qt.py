@@ -3,6 +3,8 @@ from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QTextEdit
 from PyQt5.QtCore import QProcess
 import os
 
+import zhconv
+
 # 按键触发库（不推荐）
 #import keyboard
 #import time
@@ -54,6 +56,10 @@ def stopRecording():
         with open("text.txt", "r") as file:
             lines = file.readlines()
         text = ''.join([line.split('] ')[-1] for line in lines if '] ' in line])
+
+        # 将繁体字转换为简体字
+        text = zhconv.convert(text, 'zh-cn')
+
         textEdit.insertPlainText(text)
 
         # 将文本复制到剪贴板
