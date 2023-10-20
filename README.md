@@ -14,3 +14,4 @@ pip install zhconv
 ```sh
 python qt.py
 ```
+ 
