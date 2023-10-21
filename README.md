@@ -7,8 +7,12 @@
 # 安装
 无需创建虚拟环境，直接安装即可
 ```sh
-pip install -U openai-whisper --break-system-packages
-pip install zhconv --break-system-packages
+pip install -U openai-whisper
+pip install zhconv
+```
+如果pip不能直接安装，可以使用以下参数来强制pip安装
+```sh
+--break-system-packages
 ```
 装好依赖后即可运行
 ```sh
