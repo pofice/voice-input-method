@@ -1,86 +1,74 @@
-# 导入PyQt5模块
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QTextEdit
-from PyQt5.QtCore import QProcess
+from PyQt5.QtCore import QProcess, Qt
 import os
-
 import zhconv
 
-# 按键触发库（不推荐）
-#import keyboard
-#import time
+class MyWindow(QWidget):
+    def __init__(self):
+        super().__init__()
 
-# 创建一个应用程序对象
-app = QApplication([])
+        # 窗口置顶
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
 
-# 创建一个主窗口对象
-window = QWidget()
+        # 设置窗口的标题
+        self.setWindowTitle('RTX语音输入法')
 
-# 设置窗口的标题
-window.setWindowTitle('RTX语音输入法')
+        # 设置窗口的大小
+        self.resize(250, 200)
 
-# 设置窗口的大小
-window.resize(250, 200)
+        # 在窗口中间添加一个按钮，大小是50×50
+        self.button = QPushButton(self)
+        self.button.setText("输入")
+        self.button.resize(100, 50)
 
-# 在窗口中间添加一个按钮，大小是50×50
-button = QPushButton(window)
-button.setText("输入")
-button.resize(100, 50)
+        # 添加一个文本编辑框
+        self.textEdit = QTextEdit(self)
+        self.textEdit.move(0, 0)
+        self.textEdit.resize(self.width(), self.height() - self.button.height())
 
-# 添加一个文本编辑框
-textEdit = QTextEdit(window)
-textEdit.move(0, 0)
-textEdit.resize(window.width(), window.height() - button.height())
+        # 使按钮居中
+        self.button.move(int((self.width() - self.button.width()) / 2), int(self.height() - self.button.height()))
 
-# 使按钮居中
-button.move(int((window.width() - button.width()) / 2), int(window.height() - button.height()))
+        # 创建一个进程对象用于录音
+        self.recorder = QProcess()
 
-# 创建一个进程对象用于录音
-recorder = QProcess()
+        # 当按钮被按下时开始录音
+        self.button.pressed.connect(self.startRecording)
+        self.button.released.connect(self.stopRecording)
 
- # 当按钮被按下时开始录音
-def startRecording():
-     recorder.start("arecord", ["-f", "cd", "audio.wav"])
-     print("Recording started...")
+    def startRecording(self):
+        self.recorder.start("arecord", ["-f", "cd", "audio.wav"])
+        print("Recording started...")
 
-def stopRecording():
-    recorder.terminate()
-    recorder.waitForFinished()
-    print("Recording stopped")
-    try:
-        # 自动检测语言（不推荐）
-        #os.system("whisper audio.wav > text.txt")
+    def stopRecording(self):
+        self.recorder.terminate()
+        self.recorder.waitForFinished()
+        print("Recording stopped")
+        try:
+            # 中文或英语
+            os.system("whisper --language Chinese audio.wav > text.txt")
 
-        # 中文或英语
-        os.system("whisper --language Chinese audio.wav > text.txt")
+            with open("text.txt", "r") as file:
+                lines = file.readlines()
+            text = ''.join([line.split('] ')[-1] for line in lines if '] ' in line])
 
-        with open("text.txt", "r") as file:
-            lines = file.readlines()
-        text = ''.join([line.split('] ')[-1] for line in lines if '] ' in line])
+            # 将繁体字转换为简体字
+            text = zhconv.convert(text, 'zh-cn')
 
-        # 将繁体字转换为简体字
-        text = zhconv.convert(text, 'zh-cn')
+            self.textEdit.insertPlainText(text)
 
-        textEdit.insertPlainText(text)
+            # 将文本复制到剪贴板
+            clipboard = QApplication.clipboard()
+            clipboard.setText(text)
 
-        # 将文本复制到剪贴板
-        clipboard = QApplication.clipboard()
-        clipboard.setText(text)
+        except FileNotFoundError:
+            print("Could not find audio.wav or text.txt")
+        finally:
+            if os.path.exists("text.txt"):
+                os.remove("text.txt")
 
-    except FileNotFoundError:
-        print("Could not find audio.wav or text.txt")
-    finally:
-        if os.path.exists("text.txt"):
-            os.remove("text.txt")
-
-button.pressed.connect(startRecording)
-button.released.connect(stopRecording)
-
-# 按键触发（不推荐）
-#keyboard.on_press_key("F6", startRecording)
-#keyboard.on_release_key("F6", stopRecording)
-
-# 显示窗口
-window.show()
-
-# 进入应用程序的主循环
-app.exec_()
+if __name__ == "__main__":
+    app = QApplication([])
+    window = MyWindow()
+    window.show()
+    app.exec_()
