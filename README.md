@@ -19,4 +19,3 @@ pip install zhconv
 python qt.py
 ```
  
- 
