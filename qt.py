@@ -67,6 +67,22 @@ class MyWindow(QWidget):
             if os.path.exists("text.txt"):
                 os.remove("text.txt")
 
+    # 让窗口可以拖拽
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.dragPosition = event.globalPos() - self.frameGeometry().topLeft()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() == Qt.LeftButton:
+            self.move(event.globalPos() - self.dragPosition)
+            event.accept()
+
+    # 让布局自适应大小
+    def resizeEvent(self, event):
+        self.textEdit.resize(self.width(), self.height() - self.button.height())
+        self.button.move(int((self.width() - self.button.width()) / 2), int(self.height() - self.button.height()))
+
 if __name__ == "__main__":
     app = QApplication([])
     window = MyWindow()
