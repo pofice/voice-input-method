@@ -10,6 +10,8 @@
 # 安装
 无需创建虚拟环境，直接安装即可
 ```sh
+pip install PyQt5
+
 pip install -U openai-whisper
 pip install zhconv
 ```
