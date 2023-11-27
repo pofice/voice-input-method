@@ -1,6 +1,8 @@
 # linux-voice-input-method
-这是在linux本地部署的基于Whisper的语音输入法
 ![Demo webpage](demo.png)
+
+这是在linux本地部署的基于Whisper的语音输入法
+
 长按即可输入，它会自动把输出文本复制到剪贴板
 
 要求有桌面环境，最好是kde
