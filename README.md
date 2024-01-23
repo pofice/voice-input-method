@@ -26,3 +26,5 @@ pip install zhconv
 python qt.py
 ```
  
+既然Linux的输入法不好用，那我为什么不直接用手机的输入法呢？
+https://github.com/pofice/linux-voice-input-method-2
