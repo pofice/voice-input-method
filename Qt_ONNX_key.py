@@ -2,6 +2,7 @@ from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QTextEdit
 from PyQt5.QtGui import QMouseEvent, QKeyEvent
 from PyQt5.QtCore import QProcess, Qt, QEvent, QTimer
 from funasr_onnx import Paraformer
+from pynput import keyboard
 import os
 import zhconv
 
@@ -30,10 +31,10 @@ class MyWindow(QWidget):
         self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
 
         # 设置窗口的标题
-        self.setWindowTitle('RTX语音输入法')
+        self.setWindowTitle('RTX-IM')
 
         # 设置窗口的大小
-        self.resize(250, 200)
+        self.resize(200, 100)
 
         # 在窗口中间添加一个按钮，大小是50×50
         self.button = MyButton(self)
@@ -59,6 +60,9 @@ class MyWindow(QWidget):
         self.button.pressed.connect(self.startRecording)
         self.button.released.connect(self.stopRecording)
 
+        # Setup global hotkey
+        self.setup_hotkey()
+
         self.timer = QTimer()
         self.timer.timeout.connect(self.simulatePress)
 
@@ -68,19 +72,26 @@ class MyWindow(QWidget):
         # 添加一个定时器
         self.timer = QTimer()
         self.timer.timeout.connect(self.simulatePress)
-    def keyPressEvent(self, event):
-        if event.isAutoRepeat():
-            return
-        if event.key() == Qt.Key_F6 and not self.button.isPressed:
-            self.button.simulatePress()  # 按下F6时模拟鼠标按下事件
-            self.timer.start(100)  # 启动定时器，每100毫秒模拟一次按钮按下事件
 
-    def keyReleaseEvent(self, event):
-        if event.isAutoRepeat():
-            return
-        if event.key() == Qt.Key_F6 and self.button.isPressed:
-            self.button.simulateRelease()  # 释放F6时模拟鼠标释放事件
-            self.timer.stop()  # 停止定时器
+    def setup_hotkey(self):
+        def on_press(key):
+            try:
+                if key == keyboard.Key.f6 and not self.button.isPressed:
+                    self.button.simulatePress()  # 按下F6时模拟鼠标按下事件
+                    self.timer.start(100)  # 启动定时器，每100毫秒模拟一次按钮按下事件
+            except AttributeError:
+                pass
+
+        def on_release(key):
+            if key == keyboard.Key.f6 and self.button.isPressed:
+                self.button.simulateRelease()  # 释放F6时模拟鼠标释放事件
+                self.timer.stop()  # 停止定时器
+
+        # Collect events until released
+        self.listener = keyboard.Listener(
+            on_press=on_press,
+            on_release=on_release)
+        self.listener.start()
 
     def startRecording(self):
         self.recorder.start("arecord", ["-f", "cd", "audio.wav"])
