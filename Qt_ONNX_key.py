@@ -3,8 +3,7 @@ from PyQt5.QtGui import QMouseEvent, QKeyEvent
 from PyQt5.QtCore import QProcess, Qt, QEvent, QTimer
 from funasr_onnx import Paraformer
 from pynput import keyboard
-import os
-import zhconv
+from pynput.keyboard import Controller, Key
 
 class MyButton(QPushButton):
     def __init__(self, *args, **kwargs):
@@ -121,6 +120,12 @@ class MyWindow(QWidget):
             # 将文本复制到剪贴板
             clipboard = QApplication.clipboard()
             clipboard.setText(transcription)
+
+            # 模拟按下Ctrl+V
+            keyboard = Controller()
+            with keyboard.pressed(Key.ctrl):  # 直接使用Key.ctrl
+                keyboard.press('v')
+                keyboard.release('v')
 
     # 让窗口可以拖拽
     def mousePressEvent(self, event):
