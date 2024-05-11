@@ -39,7 +39,7 @@ class MyWindow(QWidget):
         # 在窗口中间添加一个按钮，大小是50×50
         self.button = MyButton(self)
         self.button.setText("输入")
-        self.button.resize(100, 50)
+        self.button.resize(200, 32)
 
         # 添加一个文本编辑框
         self.textEdit = QTextEdit(self)
@@ -78,14 +78,12 @@ class MyWindow(QWidget):
             try:
                 if key == keyboard.Key.f6 and not self.button.isPressed:
                     self.button.simulatePress()  # 按下F6时模拟鼠标按下事件
-                    self.timer.start(100)  # 启动定时器，每100毫秒模拟一次按钮按下事件
             except AttributeError:
                 pass
 
         def on_release(key):
             if key == keyboard.Key.f6 and self.button.isPressed:
                 self.button.simulateRelease()  # 释放F6时模拟鼠标释放事件
-                self.timer.stop()  # 停止定时器
 
         # Collect events until released
         self.listener = keyboard.Listener(
