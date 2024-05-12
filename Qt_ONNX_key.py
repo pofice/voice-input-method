@@ -81,14 +81,14 @@ class MyWindow(QWidget):
     def setup_hotkey(self):
         def on_press(key):
             try:
-                if key == keyboard.Key.f6 and not self.button.isPressed:
-                    self.button.simulatePress()  # 按下F6时模拟鼠标按下事件
+                if key == keyboard.Key.scroll_lock and not self.button.isPressed:  # Change here
+                    self.button.simulatePress()  # 按下Scroll Lock时模拟鼠标按下事件
             except AttributeError:
                 pass
 
         def on_release(key):
-            if key == keyboard.Key.f6 and self.button.isPressed:
-                self.button.simulateRelease()  # 释放F6时模拟鼠标释放事件
+            if key == keyboard.Key.scroll_lock and self.button.isPressed:  # Change here
+                self.button.simulateRelease()  # 释放Scroll Lock时模拟鼠标释放事件
 
         # Collect events until released
         self.listener = keyboard.Listener(
