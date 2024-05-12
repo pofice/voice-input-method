@@ -1,9 +1,10 @@
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QTextEdit
 from PyQt5.QtGui import QMouseEvent, QKeyEvent
-from PyQt5.QtCore import QProcess, Qt, QEvent, QTimer
+from PyQt5.QtCore import QProcess, Qt, QEvent, QTimer, pyqtSignal
 from funasr_onnx import Paraformer
 from pynput import keyboard
 from pynput.keyboard import Controller, Key
+import threading
 
 class MyButton(QPushButton):
     def __init__(self, *args, **kwargs):
@@ -23,8 +24,13 @@ class MyButton(QPushButton):
             self.isPressed = False
 
 class MyWindow(QWidget):
+    # Define a signal
+    transcription_ready = pyqtSignal(str)
     def __init__(self):
         super().__init__()
+
+        # Connect the signal to a slot
+        self.transcription_ready.connect(self.update_transcription)
 
         # 窗口置顶
         self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
@@ -111,21 +117,30 @@ class MyWindow(QWidget):
             self.button.simulateRelease()
 
     def transcribe_audio(self):
+        # 创建一个新的线程来执行转录的任务
+        thread = threading.Thread(target=self.transcribe_audio_thread)
+        thread.start()
+
+    def transcribe_audio_thread(self):
         wav_path = ['./audio.wav']
         result = self.model(wav_path)
         print("Transcription: ", result)
         if result and 'preds' in result[0]:
             transcription = result[0]['preds'][0]
-            self.textEdit.setText(transcription)
-            # 将文本复制到剪贴板
-            clipboard = QApplication.clipboard()
-            clipboard.setText(transcription)
+            # Emit the signal with the transcription
+            self.transcription_ready.emit(transcription)
 
-            # 模拟按下Ctrl+V
-            keyboard = Controller()
-            with keyboard.pressed(Key.ctrl):  # 直接使用Key.ctrl
-                keyboard.press('v')
-                keyboard.release('v')
+    def update_transcription(self, transcription):
+        self.textEdit.setText(transcription)
+        # 将文本复制到剪贴板
+        clipboard = QApplication.clipboard()
+        clipboard.setText(transcription)
+
+        # 模拟按下Ctrl+V
+        keyboard = Controller()
+        with keyboard.pressed(Key.ctrl):  # 直接使用Key.ctrl
+            keyboard.press('v')
+            keyboard.release('v')
 
     # 让窗口可以拖拽
     def mousePressEvent(self, event):
