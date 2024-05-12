@@ -1,30 +1,33 @@
-# linux-voice-input-method
-
-这是在linux本地部署的基于Whisper的语音输入法
+# 低延迟离线语音输入法
 
 ![Demo webpage](demo.png)
 
 长按即可输入，它会自动把输出文本复制到剪贴板
 
-要求有桌面环境，最好是kde
-
-建议使用NVIDIA显卡，以提高推理速度
+要求有桌面环境，推荐kde
 
 # 安装
-无需创建虚拟环境，直接安装即可
-```sh
-pip install PyQt5
-pip install -U openai-whisper
-pip install zhconv
+创建虚拟环境并安装requirements.txt所需的依赖
+
+## 首先我们需要导出ONNX模型
+
+### 命令行用法
+```shell
+funasr-export ++model=paraformer ++quantize=false ++device=cpu
 ```
-如果pip不能直接安装，可以使用以下参数来强制pip安装
-```sh
---break-system-packages
+
+### Python
+```python
+from funasr import AutoModel
+
+model = AutoModel(model="paraformer", device="cpu")
+
+res = model.export(quantize=False)
 ```
-装好依赖后即可运行
-```sh
-python qt.py
-```
+
+之后根据导出ONNX模型的目录，更改Qt_ONNX_key.py文件的model_dir，以便正常加载模型
+
+之后使用虚拟环境运行Qt_ONNX_key.py即可，全局热键默认为 Scroll Lock 键，长按即可输入
  
-既然Linux的输入法不好用，那我为什么不直接用手机的输入法呢？
+另一种语音输入法的方案，使电脑可以直接使用手机的输入法输入
 https://github.com/pofice/linux-voice-input-method-2
