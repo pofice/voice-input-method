@@ -4,12 +4,18 @@
 
 长按即可输入，它会自动把输出文本复制到剪贴板
 
-要求有桌面环境，推荐kde
+本项目基于python3.10开发，要求有桌面环境，推荐kde
 
 # 安装
 创建虚拟环境并安装requirements.txt所需的依赖
+```shell
+  python3.10 -m venv venv
 
-## 首先我们需要导出ONNX模型
+  # 安装依赖
+  venv/bin/pip install -r requirements.txt
+```
+
+## 在运行之前，我们需要导出ONNX模型
 
 ### 命令行用法
 ```shell
@@ -25,9 +31,9 @@ model = AutoModel(model="paraformer", device="cpu")
 res = model.export(quantize=False)
 ```
 
-之后根据导出ONNX模型的目录，更改Qt_ONNX_key.py文件的model_dir，以便正常加载模型
+之后根据导出ONNX模型的目录，更改Qt_ONNX_key.py文件的model_dir，确保一致，以便正常加载模型
 
-之后使用虚拟环境运行Qt_ONNX_key.py即可，全局热键默认为 Scroll Lock 键，长按即可输入
+之后使用虚拟环境运行Qt_ONNX_key.py即可（或者也可以使用一键启动脚本RTX-IM.sh），全局热键默认为 Scroll Lock 键，长按即可输入
  
 另一种语音输入法的方案，使电脑可以直接使用手机的输入法输入
 https://github.com/pofice/linux-voice-input-method-2
