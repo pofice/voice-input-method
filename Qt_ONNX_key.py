@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QTextEdit
-from PyQt5.QtGui import QMouseEvent, QKeyEvent
+from PyQt5.QtGui import QMouseEvent, QIcon
 from PyQt5.QtCore import QProcess, Qt, QEvent, QTimer, pyqtSignal
 from funasr_onnx import Paraformer
 from pynput import keyboard
@@ -34,6 +34,9 @@ class MyWindow(QWidget):
 
         # 窗口置顶
         self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+
+        # 设置窗口图标
+        self.setWindowIcon(QIcon('./icon.png'))
 
         # 设置窗口的标题
         self.setWindowTitle('RTX-IM')
@@ -155,8 +158,12 @@ class MyWindow(QWidget):
 
     # 让布局自适应大小
     def resizeEvent(self, event):
+        # 让文本编辑框的大小自适应窗口大小
         self.textEdit.resize(self.width(), self.height() - self.button.height())
-        self.button.move(int((self.width() - self.button.width()) / 2), int(self.height() - self.button.height()))
+        # 让按钮的宽度自适应窗口大小，高度保持不变
+        self.button.resize(self.width(), self.button.height())
+        # 让按钮居中
+        self.button.move(0, int(self.height() - self.button.height()))
 
 if __name__ == "__main__":
     app = QApplication([])
