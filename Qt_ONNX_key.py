@@ -34,6 +34,9 @@ class MyWindow(QWidget):
         # Connect the signal to a slot
         self.transcription_ready.connect(self.update_transcription)
 
+        # Connect the signal to a slot
+        self.text_ready.connect(self.update_text)
+
         # 窗口置顶
         self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
 
@@ -84,8 +87,11 @@ class MyWindow(QWidget):
         self.timer = QTimer()
         self.timer.timeout.connect(self.simulatePress)
 
-        # Initialize isF6Pressed attribute
-        # self.isF6Pressed = False
+        # Initialize dragPosition attribute
+        self.dragPosition = None
+
+        # Initialize a lock for the convertTextThread
+        self.convert_lock = threading.Lock()
 
         # 添加一个定时器
         self.timer = QTimer()
@@ -107,20 +113,24 @@ class MyWindow(QWidget):
         thread = threading.Thread(target=self.convertTextThread)
         thread.start()
 
-        self.text_ready.connect(self.update_text)  # Connect the signal to a slot
-
     def convertTextThread(self):
-        text = self.textEdit.toPlainText()
-        if any(char in self.traditional_chars for char in text):
-            converted = self.cc_t2s.convert(text)
-        else:
-            converted = self.cc_s2t.convert(text)
-        self.text_ready.emit(converted)  # Emit the signal with the converted text
+        # Acquire the lock before starting the conversion
+        self.convert_lock.acquire()
+        try:
+            text = self.textEdit.toPlainText()
+            if any(char in self.traditional_chars for char in text):
+                converted = self.cc_t2s.convert(text)
+            else:
+                converted = self.cc_s2t.convert(text)
+            self.text_ready.emit(converted)  # Emit the signal with the converted text
 
-        # 将转换后的文本复制到剪贴板
-        clipboard = QApplication.clipboard()
-        clipboard.setText(converted)
-        print("Text converted")
+            # 将转换后的文本复制到剪贴板
+            clipboard = QApplication.clipboard()
+            clipboard.setText(converted)
+            print("Text converted")
+        finally:
+            # Release the lock after the conversion is done
+            self.convert_lock.release()
 
     def update_text(self, text):
         self.textEdit.setText(text)  # Update the textEdit in the main thread
@@ -196,7 +206,7 @@ class MyWindow(QWidget):
             event.accept()
 
     def mouseMoveEvent(self, event):
-        if event.buttons() == Qt.LeftButton:
+        if self.dragPosition is not None:
             self.move(event.globalPos() - self.dragPosition)
             event.accept()
 
