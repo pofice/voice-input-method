@@ -67,6 +67,9 @@ class MyWindow(QWidget):
         self.textEdit.move(0, 0)
         self.textEdit.resize(self.width(), self.height() - self.button.height())
 
+        # 设置文本编辑框的背景颜色为半透明的黑色，文本颜色为白色
+        self.textEdit.setStyleSheet("background-color: rgba(0, 0, 0, 128); color: white;")
+
         # 使按钮居中
         self.button.move(int((self.width() - self.button.width()) / 2), int(self.height() - self.button.height()))
 
