@@ -5,6 +5,7 @@ from funasr_onnx import Paraformer
 from pynput import keyboard
 from pynput.keyboard import Controller, Key
 import threading
+from opencc import OpenCC
 
 class MyButton(QPushButton):
     def __init__(self, *args, **kwargs):
@@ -26,6 +27,7 @@ class MyButton(QPushButton):
 class MyWindow(QWidget):
     # Define a signal
     transcription_ready = pyqtSignal(str)
+    text_ready = pyqtSignal(str)  # Define a new signal
     def __init__(self):
         super().__init__()
 
@@ -44,10 +46,18 @@ class MyWindow(QWidget):
         # 设置窗口的大小
         self.resize(200, 100)
 
-        # 在窗口中间添加一个按钮，大小是50×50
+        # 在窗口中间添加一个按钮，大小是窗口宽度的一半
         self.button = MyButton(self)
-        self.button.setText("输入")
-        self.button.resize(200, 32)
+        self.button.setText("长按输入")
+        self.button.resize(self.width() // 2, 32)
+
+        # 添加一个新的按钮，位置在窗口宽度的一半，大小也是窗口宽度的一半
+        self.convertButton = MyButton(self)
+        self.convertButton.setText("繁简转换")
+        self.convertButton.resize(self.width() // 2, 32)
+        self.convertButton.move(self.width() // 2, int(self.height() - self.convertButton.height()))
+        self.convertButton.released.connect(self.convertText)
+
 
         # 添加一个文本编辑框
         self.textEdit = QTextEdit(self)
@@ -75,11 +85,45 @@ class MyWindow(QWidget):
         self.timer.timeout.connect(self.simulatePress)
 
         # Initialize isF6Pressed attribute
-        self.isF6Pressed = False
+        # self.isF6Pressed = False
 
         # 添加一个定时器
         self.timer = QTimer()
         self.timer.timeout.connect(self.simulatePress)
+
+        # Initialize OpenCC
+        self.cc_s2t = OpenCC('s2twp')
+        self.cc_t2s = OpenCC('t2s')
+
+        # 打开并读取文件
+        with open('library.txt', 'r') as f:
+            library_text = f.read()
+
+        # 将读取的内容转换为一个集合
+        self.traditional_chars = set(library_text)
+
+    def convertText(self):
+        # 创建一个新的线程来处理转换操作
+        thread = threading.Thread(target=self.convertTextThread)
+        thread.start()
+
+        self.text_ready.connect(self.update_text)  # Connect the signal to a slot
+
+    def convertTextThread(self):
+        text = self.textEdit.toPlainText()
+        if any(char in self.traditional_chars for char in text):
+            converted = self.cc_t2s.convert(text)
+        else:
+            converted = self.cc_s2t.convert(text)
+        self.text_ready.emit(converted)  # Emit the signal with the converted text
+
+        # 将转换后的文本复制到剪贴板
+        clipboard = QApplication.clipboard()
+        clipboard.setText(converted)
+        print("Text converted")
+
+    def update_text(self, text):
+        self.textEdit.setText(text)  # Update the textEdit in the main thread
 
     def setup_hotkey(self):
         def on_press(key):
@@ -160,10 +204,12 @@ class MyWindow(QWidget):
     def resizeEvent(self, event):
         # 让文本编辑框的大小自适应窗口大小
         self.textEdit.resize(self.width(), self.height() - self.button.height())
-        # 让按钮的宽度自适应窗口大小，高度保持不变
-        self.button.resize(self.width(), self.button.height())
-        # 让按钮居中
+        # 让两个按钮的宽度自适应窗口大小，高度保持不变
+        self.button.resize(self.width() // 2, self.button.height())
+        self.convertButton.resize(self.width() // 2, self.convertButton.height())
+        # 让输入按钮靠左，转换按钮靠右
         self.button.move(0, int(self.height() - self.button.height()))
+        self.convertButton.move(self.width() // 2, int(self.height() - self.convertButton.height()))
 
 if __name__ == "__main__":
     app = QApplication([])
