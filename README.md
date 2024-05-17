@@ -35,7 +35,9 @@ res = model.export(quantize=False)
 
 之后根据导出ONNX模型的目录，更改Qt_ONNX_key.py文件的model_dir，确保一致，以便正常加载模型
 
-之后使用虚拟环境运行Qt_ONNX_key.py即可（或者也可以使用一键启动脚本RTX-IM.sh），全局热键默认为 Scroll Lock 键，长按即可输入
+# 运行
+
+使用虚拟环境运行Qt_ONNX_key.py即可（或者也可以使用一键启动脚本RTX-IM.sh），全局热键默认为 Scroll Lock 键，长按即可输入
  
 我的另一种语音输入法的方案，使电脑可以直接使用手机的输入法输入
 
