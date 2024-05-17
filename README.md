@@ -37,5 +37,9 @@ res = model.export(quantize=False)
 
 之后使用虚拟环境运行Qt_ONNX_key.py即可（或者也可以使用一键启动脚本RTX-IM.sh），全局热键默认为 Scroll Lock 键，长按即可输入
  
-另一种语音输入法的方案，使电脑可以直接使用手机的输入法输入
+我的另一种语音输入法的方案，使电脑可以直接使用手机的输入法输入
+
 https://github.com/pofice/linux-voice-input-method-2
+
+funASR出处
+https://github.com/alibaba-damo-academy/FunASR
