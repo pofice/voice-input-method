@@ -3,3 +3,8 @@ pynput
 funasr-onnx
 funasr
 opencc-python-reimplemented
+sounddevice
+soundfile
+
+torchaudio
+modelscope

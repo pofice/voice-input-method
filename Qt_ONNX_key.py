@@ -6,6 +6,9 @@ from pynput import keyboard
 from pynput.keyboard import Controller, Key
 import threading
 from opencc import OpenCC
+import sounddevice as sd
+import soundfile as sf
+import numpy as np
 
 class MyButton(QPushButton):
     def __init__(self, *args, **kwargs):
@@ -67,8 +70,8 @@ class MyWindow(QWidget):
         self.textEdit.move(0, 0)
         self.textEdit.resize(self.width(), self.height() - self.button.height())
 
-        # 设置文本编辑框的背景颜色为半透明的黑色，文本颜色为白色
-        self.textEdit.setStyleSheet("background-color: rgba(0, 0, 0, 128); color: white;")
+        # # 设置文本编辑框的背景颜色为半透明的黑色，文本颜色为白色
+        # self.textEdit.setStyleSheet("background-color: rgba(0, 0, 0, 128); color: white;")
 
         # 使按钮居中
         self.button.move(int((self.width() - self.button.width()) / 2), int(self.height() - self.button.height()))
@@ -77,7 +80,7 @@ class MyWindow(QWidget):
         self.recorder = QProcess()
 
         # 初始化模型
-        model_dir = "/home/pofice/.cache/modelscope/hub/iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch/"
+        model_dir = "./speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch"
         self.model = Paraformer(model_dir, batch_size=1, quantize=True)
 
         # 当按钮被按下时开始录音
@@ -105,7 +108,7 @@ class MyWindow(QWidget):
         self.cc_t2s = OpenCC('t2s')
 
         # 打开并读取文件
-        with open('library.txt', 'r') as f:
+        with open('library.txt', 'r', encoding='utf-8') as f:
             library_text = f.read()
 
         # 将读取的内容转换为一个集合
@@ -156,17 +159,22 @@ class MyWindow(QWidget):
             on_release=on_release)
         self.listener.start()
 
+        self.recording = np.array([])  # Initialize an empty array to store the audio data
+        self.fs = 44100  # Sample rate
+        self.isRecording = False  # Add a flag to indicate whether recording is in progress
+
     def startRecording(self):
-        self.recorder.start("arecord", ["-f", "cd", "audio.wav"])
+        self.isRecording = True
+        self.recording = sd.rec(int(self.fs * 5.0), samplerate=self.fs, channels=2)
         print("Recording started...")
-        self.isRecording = True  # 添加一个状态变量，表示正在录音
 
     def stopRecording(self):
-        self.recorder.terminate()
-        self.recorder.waitForFinished()
-        print("Recording stopped")
-        self.isRecording = False  # 录音结束，改变状态变量的值
-        self.transcribe_audio()
+        if self.isRecording:
+            sd.stop()
+            sf.write('audio.wav', self.recording, self.fs)
+            print("Recording stopped")
+            self.isRecording = False
+            self.transcribe_audio()
 
     def simulatePress(self):
         if not self.button.isPressed and not self.isRecording:  # 在模拟鼠标按下事件时，检查是否正在录音
