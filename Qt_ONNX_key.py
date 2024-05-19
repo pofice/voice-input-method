@@ -86,6 +86,9 @@ class MyWindow(QWidget):
         model_dir = "./speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch"
         self.model = Paraformer(model_dir, batch_size=1, quantize=True)
 
+        # 预热模型，避免第一次推理时的延迟
+        self.model(['./audio.wav'])
+
         # 当按钮被按下时开始录音
         self.button.pressed.connect(self.startRecording)
         self.button.released.connect(self.stopRecording)
