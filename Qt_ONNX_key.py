@@ -34,6 +34,9 @@ class MyWindow(QWidget):
     def __init__(self):
         super().__init__()
 
+        # 设置全局热键
+        self.global_hotkey = keyboard.Key.scroll_lock
+
         # Connect the signal to a slot
         self.transcription_ready.connect(self.update_transcription)
 
@@ -144,13 +147,13 @@ class MyWindow(QWidget):
     def setup_hotkey(self):
         def on_press(key):
             try:
-                if key == keyboard.Key.scroll_lock and not self.button.isPressed:  # Change here
+                if key == self.global_hotkey and not self.button.isPressed:  # Use the global_hotkey variable here
                     self.button.simulatePress()  # 按下Scroll Lock时模拟鼠标按下事件
             except AttributeError:
                 pass
 
         def on_release(key):
-            if key == keyboard.Key.scroll_lock and self.button.isPressed:  # Change here
+            if key == self.global_hotkey and self.button.isPressed:  # Use the global_hotkey variable here
                 self.button.simulateRelease()  # 释放Scroll Lock时模拟鼠标释放事件
 
         # Collect events until released
