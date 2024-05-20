@@ -6,9 +6,6 @@ from pynput import keyboard
 from pynput.keyboard import Controller, Key
 import threading
 from opencc import OpenCC
-import sounddevice as sd
-import soundfile as sf
-import numpy as np
 
 class MyButton(QPushButton):
     def __init__(self, *args, **kwargs):
@@ -86,8 +83,8 @@ class MyWindow(QWidget):
         model_dir = "./speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch"
         self.model = Paraformer(model_dir, batch_size=1, quantize=True)
 
-        # 预热模型，避免第一次推理时的延迟
-        self.model(['./audio.wav'])
+        # # 预热模型，避免第一次推理时的延迟
+        # self.model(['./audio.wav'])
 
         # 当按钮被按下时开始录音
         self.button.pressed.connect(self.startRecording)
@@ -165,22 +162,17 @@ class MyWindow(QWidget):
             on_release=on_release)
         self.listener.start()
 
-        self.recording = np.array([])  # Initialize an empty array to store the audio data
-        self.fs = 44100  # Sample rate
-        self.isRecording = False  # Add a flag to indicate whether recording is in progress
-
     def startRecording(self):
-        self.isRecording = True
-        self.recording = sd.rec(int(self.fs * 5.0), samplerate=self.fs, channels=2)
+        self.recorder.start("arecord", ["-f", "cd", "audio.wav"])
         print("Recording started...")
+        self.isRecording = True  # 添加一个状态变量，表示正在录音
 
     def stopRecording(self):
-        if self.isRecording:
-            sd.stop()
-            sf.write('audio.wav', self.recording, self.fs)
-            print("Recording stopped")
-            self.isRecording = False
-            self.transcribe_audio()
+        self.recorder.terminate()
+        self.recorder.waitForFinished()
+        print("Recording stopped")
+        self.isRecording = False  # 录音结束，改变状态变量的值
+        self.transcribe_audio()
 
     def simulatePress(self):
         if not self.button.isPressed and not self.isRecording:  # 在模拟鼠标按下事件时，检查是否正在录音
