@@ -9,6 +9,11 @@
 本项目基于python3.10开发，要求有桌面环境，推荐kde
 
 # 安装
+首先确保系统已安装alsa-utils
+```shell
+pacman -S alsa-utils
+```
+
 创建虚拟环境并安装requirements.txt所需的依赖
 ```shell
   python3.10 -m venv venv
