@@ -181,6 +181,9 @@ class MyWindow(QWidget):
         self.myrecording.extend(indata.tolist())
 
     def startRecording(self):
+        # 清空录音数据
+        self.myrecording = []
+
         # 开始录音
         self.stream.start()
         print("Recording started...")
