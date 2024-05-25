@@ -8,6 +8,7 @@ import threading
 from opencc import OpenCC
 import sounddevice as sd
 import numpy as np
+import soundfile as sf
 
 class MyButton(QPushButton):
     def __init__(self, *args, **kwargs):
@@ -193,7 +194,9 @@ class MyWindow(QWidget):
 
         # 将录音数据写入文件
         myrecording_np = np.array(self.myrecording)
-        sd.write('audio.wav', myrecording_np, self.fs)
+        sf.write('audio.wav', myrecording_np, self.fs)
+        # 开始转录音频
+        self.transcribe_audio()
 
     def simulatePress(self):
         if not self.button.isPressed and not self.isRecording:  # 在模拟鼠标按下事件时，检查是否正在录音
