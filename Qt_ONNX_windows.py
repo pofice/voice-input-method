@@ -174,32 +174,31 @@ class MyWindow(QWidget):
 
         # 创建一个录音流
         self.stream = sd.InputStream(samplerate=self.fs, channels=self.channels, callback=self.audio_callback)
-        # ...
-
-    def audio_callback(self, indata, frames, time, status):
-        # Append the incoming data to the recording list
-        self.myrecording.extend(indata.tolist())
+        # 创建一个用于存储录音数据的列表
+        self.myrecording = []
+        # 添加一个状态变量，表示是否正在录音
+        self.isRecording = False
+        # 开始录音
+        self.stream.start()
+        print("Recording started...")
 
     def startRecording(self):
         # 清空录音数据
         self.myrecording = []
-
-        # 开始录音
-        self.stream.start()
-        print("Recording started...")
-        self.isRecording = True  # 添加一个状态变量，表示正在录音
+        self.isRecording = True  # 开始录音，改变状态变量的值
 
     def stopRecording(self):
-        # 停止录音
-        self.stream.stop()
-        print("Recording stopped")
         self.isRecording = False  # 录音结束，改变状态变量的值
-
         # 将录音数据写入文件
         myrecording_np = np.array(self.myrecording)
         sf.write('audio.wav', myrecording_np, self.fs)
         # 开始转录音频
         self.transcribe_audio()
+
+    def audio_callback(self, indata, frames, time, status):
+        # 如果正在录音，就将录音数据添加到列表中
+        if self.isRecording:
+            self.myrecording.extend(indata.tolist())
 
     def simulatePress(self):
         if not self.button.isPressed and not self.isRecording:  # 在模拟鼠标按下事件时，检查是否正在录音
