@@ -14,6 +14,14 @@ class MyButton(QPushButton):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.isPressed = False
+        self.pressed.connect(self.change_color)
+        self.released.connect(self.restore_color)
+
+    def change_color(self):
+        self.setStyleSheet("background-color: #76b900;")  # Change to red when pressed
+
+    def restore_color(self):
+        self.setStyleSheet("background-color: #3d7534;")  # Restore to original color when released
 
     def simulatePress(self):
         if not self.isPressed:

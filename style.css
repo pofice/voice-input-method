@@ -1,5 +1,5 @@
 QWidget {
-    border-radius: 10px;
+    border-radius: 0px;
 }
 
 QPushButton {
@@ -7,9 +7,9 @@ QPushButton {
     border: none;
     color: white;
     text-align: center;
-    font-size: 16px;
-    margin: 4px 2px;
-    border-radius: 10px;
+    font-size: 12px;
+    margin: 2px 2px;
+    border-radius: 14px;
 }
 
 QTextEdit {
