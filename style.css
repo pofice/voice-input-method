@@ -3,7 +3,7 @@ QWidget {
 }
 
 QPushButton {
-    background-color: #3d7534; /* Green */
+    background-color: rgba(90, 133, 15, 1); /* Green */
     border: none;
     color: white;
     text-align: center;
@@ -13,7 +13,7 @@ QPushButton {
 }
 
 QTextEdit {
-    background-color: rgb(28, 28, 28);
+    background-color: rgb(26, 26, 26);
     color: white;  /* Change the text color to white */
     font-size: 12px;
 }
