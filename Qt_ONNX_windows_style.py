@@ -16,12 +16,22 @@ class MyButton(QPushButton):
         self.isPressed = False
         self.pressed.connect(self.change_color)
         self.released.connect(self.restore_color)
+        self.setCursor(Qt.PointingHandCursor)
 
     def change_color(self):
-        self.setStyleSheet("background-color: rgba(90, 133, 15, 0.5);")  # Change to red when pressed
+        self.setStyleSheet("background-color: rgba(90, 133, 15, 0.8);")  # Change to red when pressed
 
     def restore_color(self):
-        self.setStyleSheet("background-color: rgba(90, 133, 15, 1);")  # Restore to original color when released
+        if self.underMouse():
+            self.setStyleSheet("background-color: rgba(100, 145, 40, 1);")  # Change to hover color if mouse is still over the button
+        else:
+            self.setStyleSheet("background-color: rgba(90, 133, 15, 1);")  # Restore to original color when released
+
+    def enterEvent(self, event):
+        self.setStyleSheet("background-color: rgba(100, 145, 40, 1);")  # Change to blue when mouse enters
+
+    def leaveEvent(self, event):
+        self.restore_color()  # Restore to original color when mouse leaves
 
     def simulatePress(self):
         if not self.isPressed:
