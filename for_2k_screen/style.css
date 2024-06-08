@@ -1,0 +1,19 @@
+QWidget {
+    border-radius: 0px;
+}
+
+QPushButton {
+    background-color: rgba(90, 133, 15, 1); /* Green */
+    border: none;
+    color: white;
+    text-align: center;
+    font-size: 24px;
+    margin: 2px 2px;
+    border-radius: 14px;
+}
+
+QTextEdit {
+    background-color: rgb(26, 26, 26);
+    color: white;  /* Change the text color to white */
+    font-size: 24px;
+}
