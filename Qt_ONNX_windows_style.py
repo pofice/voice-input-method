@@ -52,6 +52,9 @@ class MyWindow(QWidget):
     def __init__(self):
         super().__init__()
 
+        # 设置窗口的透明度
+        self.setWindowOpacity(0.8)
+
         # 设置全局热键
         self.global_hotkey = keyboard.Key.scroll_lock
 
