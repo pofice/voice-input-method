@@ -9,9 +9,13 @@
 本项目基于python3.10开发，要求有桌面环境，推荐kde。windodows下也可以运行
 
 # 安装
-首先确保系统已安装alsa-utils，用于录音，例如archlinux下安装：
+如果您使用的是Wayland环境，首先确保系统已安装xdotool用于模拟键盘输入，例如archlinux下安装：
 ```shell
-pacman -S alsa-utils
+pacman -S xdotool
+```
+在Ubuntu或Debian下安装：
+```shell
+sudo apt-get install xdotool
 ```
 
 创建虚拟环境并安装requirements.txt所需的依赖
@@ -42,9 +46,10 @@ res = model.export(quantize=False)
 
 # 运行
 
-使用虚拟环境运行Qt_ONNX_windows.py即可，全局热键默认为 Scroll Lock 键，长按即可输入（全局热键在X11和windodows下可用，Wayland不可用，不过可以用kde快捷键之类的特定桌面实现）
+如果是X11或windodows环境，使用虚拟环境运行Qt_ONNX_windows_style.py即可，全局热键默认为 Scroll Lock 键，长按即可输入
 
-如果需要更换样式请使用Qt_ONNX_windows_style.py，它使用了更加现代的样式
+如果是Wayland环境，使用虚拟环境运行KDE_Wayland.py即可，全局热键默认为 Scroll Lock 键，长按即可输入
+
 #
 
 我的另一种语音输入法的方案，使电脑可以直接使用手机的输入法输入
