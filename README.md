@@ -18,7 +18,7 @@ pacman -S xdotool
 sudo apt-get install xdotool
 ```
 
-创建虚拟环境并安装requirements.txt所需的依赖
+创建虚拟环境并安装requirements.txt所需的依赖 (windows安装win_requirements.txt中的依赖)
 ```shell
 python3.10 -m venv venv
 
@@ -42,7 +42,7 @@ model = AutoModel(model="paraformer", device="cpu")
 res = model.export(quantize=False)
 ```
 
-之后根据导出ONNX模型的目录，更改Qt_ONNX_windows.py文件的model_dir，确保一致，以便正常加载模型
+之后根据导出ONNX模型的目录，更改Qt_ONNX_windows_style.py文件的model_dir，确保一致，以便正常加载模型
 
 # 运行
 
