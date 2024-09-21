@@ -1,4 +1,4 @@
-# 低延迟离线语音输入法
+# 基于funASR的低延迟离线语音输入法
 
 ![Demo webpage](demo.png)
 
