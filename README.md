@@ -30,7 +30,7 @@ venv/bin/pip install -r requirements.txt
 
 ### 命令行用法
 ```shell
-funasr-export ++model=paraformer ++quantize=false ++device=cpu
+funasr-export ++model=paraformer ++quantize=true ++device=cpu
 ```
 
 ### Python
@@ -39,7 +39,7 @@ from funasr import AutoModel
 
 model = AutoModel(model="paraformer", device="cpu")
 
-res = model.export(quantize=False)
+res = model.export(quantize=True)
 ```
 
 之后根据导出ONNX模型的目录，更改Qt_ONNX_windows_style.py文件的model_dir，确保一致，以便正常加载模型
