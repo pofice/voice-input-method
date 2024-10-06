@@ -249,7 +249,12 @@ class MyWindow(QWidget):
         result = self.model(wav_path, hotwords=hotwords_str)
         print("Transcription: ", result)
         if result and 'preds' in result[0]:
-            transcription = "".join(result[0]['raw_tokens'])  # Concatenate raw_tokens without spaces
+            preds = result[0]['preds']
+            # Check if the content is English or Chinese
+            if all(ord(char) < 128 for char in preds.replace(' ', '')):  # English
+                transcription = preds
+            else:  # Chinese
+                transcription = preds.replace(' ', '')
             # Emit the signal with the transcription
             self.transcription_ready.emit(transcription)
 
