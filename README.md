@@ -58,7 +58,7 @@ res = model.export(quantize=True)
 
 - 首先安装rime-ice输入法，快速部署可以点这里：https://github.com/Mark24Code/rime-auto-deploy
 
-- 然后在rime-ice输入法的用户文件夹中，找到用户文件夹，将其中的rime_ice.userdb.txt文件路径复制到本项目的`/RTXIME/rime_ice2hotwords.py`文件中的`file_path`变量中
+- 然后在rime-ice输入法的用户文件夹中，找到用户文件夹，将其中的`rime_ice.userdb.txt`文件路径复制到本项目的`/RTXIME/rime_ice2hotwords.py`文件中的`file_path`变量中
 
 - 运行`rime_ice2hotwords.py`，它会自动提取热词，并生成hotwords.txt文件
 
