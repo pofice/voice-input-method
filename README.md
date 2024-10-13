@@ -1,6 +1,6 @@
 # 基于funASR的低延迟离线语音输入法
 
-![Demo webpage](demo.png)
+![Demo webpage](demo/rtxim.png)
 
 长按即可输入，它会自动把输出文本复制到剪贴板，并在鼠标光标位置粘贴，同时在文本框中显示
 
@@ -49,6 +49,20 @@ res = model.export(quantize=True)
 如果是X11或windodows环境，使用虚拟环境运行Qt_ONNX_windows_style.py即可，全局热键默认为 Scroll Lock 键，长按即可输入
 
 如果是Wayland环境，使用虚拟环境运行KDE_Wayland.py即可，全局热键默认为 Scroll Lock 键，长按即可输入
+
+# 与rime-ice输入法联动
+
+![Demo webpage](demo/rtxime.png)
+
+使用rime-ice输入法，可以实现更好的输入体验，Rtxime可以提取rime-ice输入法的用户数据，实现热词联动
+
+首先安装rime-ice输入法，快速部署可以点这里：https://github.com/Mark24Code/rime-auto-deploy
+
+然后在rime-ice输入法的用户文件夹中，找到用户文件夹，将其中的rime_ice.userdb.txt文件路径复制到本项目的 /RTXIME/rime_ice2hotwords.py 文件中的 file_path 变量中
+
+运行rime_ice2hotwords.py，它会自动提取热词，并生成hotwords.txt文件
+
+然后运行Rtxime.py，它会自动加载hotwords.txt文件，实现热词联动
 
 #
 
