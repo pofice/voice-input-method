@@ -54,13 +54,13 @@ res = model.export(quantize=True)
 
 ![Demo webpage](demo/rtxime.png)
 
-- 使用rime-ice输入法，可以实现更好的输入体验，Rtxime可以提取rime-ice输入法的用户数据，实现热词联动
+使用rime-ice输入法，可以实现更好的输入体验，Rtxime可以提取rime-ice输入法的用户数据，实现热词联动
 
 - 首先安装rime-ice输入法，快速部署可以点这里：https://github.com/Mark24Code/rime-auto-deploy
 
 - 然后在rime-ice输入法的用户文件夹中，找到用户文件夹，将其中的`rime_ice.userdb.txt`文件路径复制到本项目的`/RTXIME/rime_ice2hotwords.py`文件中的`file_path`变量中
 
-- 运行`rime_ice2hotwords.py`，它会自动提取热词，并生成hotwords.txt文件
+- 运行`rime_ice2hotwords.py`，它会自动提取热词，并生成hotwords.txt文件（默认忽略单字符中文热词，如需保留，请将`keep_single_char`变量设置为False）
 
 - 然后运行`Rtxime.py`，它会自动加载`hotwords.txt`文件，实现热词联动
 
