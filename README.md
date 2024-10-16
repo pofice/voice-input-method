@@ -20,7 +20,7 @@ sudo apt-get install xdotool
 
 创建虚拟环境并安装`requirements.txt`所需的依赖 (windows安装`win_requirements.txt`中的依赖)
 ```shell
-python3.10 -m venv venv
+python3 -m venv venv
 
 # 安装依赖
 venv/bin/pip install -r requirements.txt
@@ -28,19 +28,7 @@ venv/bin/pip install -r requirements.txt
 
 ## 在运行之前，我们需要导出ONNX模型
 
-### 命令行用法
-```shell
-funasr-export ++model=paraformer ++quantize=true ++device=cpu
-```
-
-### Python
-```python
-from funasr import AutoModel
-
-model = AutoModel(model="paraformer", device="cpu")
-
-res = model.export(quantize=True)
-```
+运行`model_export.py`
 
 之后根据导出ONNX模型的目录，更改`Qt_ONNX_windows_style.py`文件的`model_dir`，确保一致，以便正常加载模型
 
@@ -54,9 +42,11 @@ res = model.export(quantize=True)
 
 ![Demo webpage](demo/rtxime.png)
 
-使用rime-ice输入法，可以实现更好的输入体验，Rtxime可以提取rime-ice输入法的用户数据，实现热词联动
+使用rime-ice输入法，可以实现更好的输入体验，Rtxime可以提取rime-ice输入法的用户数据，实现热词联动。
 
-- 首先安装rime-ice输入法，快速部署可以点这里：https://github.com/Mark24Code/rime-auto-deploy
+- 此版本的部署方式同上，当前目录为`RTXIME`，但使用的模型不同，需要导出`RTXIME/model_export.py`中的模型
+
+- 安装rime-ice输入法，快速部署可以点这里：https://github.com/Mark24Code/rime-auto-deploy
 
 - 然后在rime-ice输入法的用户文件夹中，找到用户文件夹，将其中的`rime_ice.userdb.txt`文件路径复制到本项目的`/RTXIME/rime_ice2hotwords.py`文件中的`file_path`变量中
 
