@@ -9,6 +9,7 @@ from opencc import OpenCC
 import sounddevice as sd
 import numpy as np
 import soundfile as sf
+import re
 
 class MyButton(QPushButton):
     def __init__(self, *args, **kwargs):
@@ -250,13 +251,12 @@ class MyWindow(QWidget):
         print("Transcription: ", result)
         if result and 'preds' in result[0]:
             preds = result[0]['preds']
-            # Check if the content is English or Chinese
-            if all(ord(char) < 128 for char in preds.replace(' ', '')):  # English
-                transcription = preds
-            else:  # Chinese
-                transcription = preds.replace(' ', '')
-            # Emit the signal with the transcription
-            self.transcription_ready.emit(transcription)
+            # Use regular expression to format the transcription correctly
+            formatted_transcription = re.sub(r'(?<=[\u4e00-\u9fff]) (?=[\u4e00-\u9fff])', '', preds)
+            formatted_transcription = re.sub(r'(?<=[\u4e00-\u9fff]) (?=[a-zA-Z])', '', formatted_transcription)
+            formatted_transcription = re.sub(r'(?<=[a-zA-Z]) (?=[\u4e00-\u9fff])', '', formatted_transcription)
+            # Emit the signal with the formatted transcription
+            self.transcription_ready.emit(formatted_transcription)
 
     def update_transcription(self, transcription):
         self.textEdit.setText(transcription)
