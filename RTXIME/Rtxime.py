@@ -108,13 +108,11 @@ class MyWindow(QWidget):
         model_dir = "/home/pofice/.cache/modelscope/hub/iic/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch/"
         self.model = SeacoParaformer(model_dir, batch_size=1, quantize=True)
 
+        # Load hotwords once during initialization
+        self.hotwords_str = self.load_hotwords()
+
         # 预热模型，避免第一次推理时的延迟
-        # Load hotwords from the hotwords.txt file
-        with open('hotwords.txt', 'r') as f:
-            hotwords = f.read().splitlines()
-        # Join the hotwords list into a single string separated by spaces
-        hotwords_str = " ".join(hotwords)
-        self.model(['./warmup.wav'], hotwords=hotwords_str)
+        self.model(['./warmup.wav'], hotwords=self.hotwords_str)
 
         # 当按钮被按下时开始录音
         self.button.pressed.connect(self.startRecording)
@@ -240,22 +238,20 @@ class MyWindow(QWidget):
         thread = threading.Thread(target=self.transcribe_audio_thread)
         thread.start()
 
-    def transcribe_audio_thread(self):
-        wav_path = ['./audio.wav']
-        # Load hotwords from the hotwords.txt file
+    def load_hotwords(self):
         with open('hotwords.txt', 'r') as f:
             hotwords = f.read().splitlines()
-        # Join the hotwords list into a single string separated by spaces
-        hotwords_str = " ".join(hotwords)
-        result = self.model(wav_path, hotwords=hotwords_str)
+        return " ".join(hotwords)
+
+    def transcribe_audio_thread(self):
+        wav_path = ['./audio.wav']
+        result = self.model(wav_path, hotwords=self.hotwords_str)
         print("Transcription: ", result)
         if result and 'preds' in result[0]:
             preds = result[0]['preds']
-            # Use regular expression to format the transcription correctly
             formatted_transcription = re.sub(r'(?<=[\u4e00-\u9fff]) (?=[\u4e00-\u9fff])', '', preds)
             formatted_transcription = re.sub(r'(?<=[\u4e00-\u9fff]) (?=[a-zA-Z])', '', formatted_transcription)
             formatted_transcription = re.sub(r'(?<=[a-zA-Z]) (?=[\u4e00-\u9fff])', '', formatted_transcription)
-            # Emit the signal with the formatted transcription
             self.transcription_ready.emit(formatted_transcription)
 
     def update_transcription(self, transcription):
