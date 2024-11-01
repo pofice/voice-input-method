@@ -239,8 +239,18 @@ class MyWindow(QWidget):
         thread.start()
 
     def load_hotwords(self):
-        with open('hotwords.txt', 'r') as f:
-            hotwords = f.read().splitlines()
+        hotwords = []
+        max_length = 10  # Define the maximum length for hotwords
+        for filename in ['hotwords.txt']:
+            with open(filename, 'r') as f:
+                for line in f:
+                    if not line.startswith('#') and line.strip():
+                        hotword = line.strip()
+                        while len(hotword) > max_length:
+                            hotwords.append(hotword[:max_length])  # Add the first max_length characters
+                            hotword = hotword[max_length:]  # Keep the remaining part
+                        hotwords.append(hotword)  # Add the remaining part if any
+        # print("Hotwords:", hotwords)
         return " ".join(hotwords)
 
     def transcribe_audio_thread(self):
