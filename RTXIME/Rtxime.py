@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QTextEdit
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QTextEdit, QCheckBox
 from PyQt5.QtGui import QMouseEvent, QIcon
 from PyQt5.QtCore import QProcess, Qt, QEvent, QTimer, pyqtSignal
 from funasr_onnx import SeacoParaformer
@@ -10,6 +10,7 @@ import sounddevice as sd
 import numpy as np
 import soundfile as sf
 import re
+import cn2an
 
 class MyButton(QPushButton):
     def __init__(self, *args, **kwargs):
@@ -145,6 +146,19 @@ class MyWindow(QWidget):
         # 将读取的内容转换为一个集合
         self.traditional_chars = set(library_text)
 
+        # Add a checkbox for enabling/disabling number conversion
+        self.number_conversion_checkbox = QCheckBox("Enable Number Conversion", self)
+        self.number_conversion_checkbox.setChecked(True)
+        self.number_conversion_checkbox.move(10, self.height() - 50)
+        self.number_conversion_checkbox.resize(180, 20)
+
+    def convert_chinese_numbers(self, text):
+        try:
+            return cn2an.transform(text, "cn2an")
+        except Exception as e:
+            print(f"Error converting Chinese numbers: {e}")
+            return text
+
     def convertText(self):
         # 创建一个新的线程来处理转换操作
         thread = threading.Thread(target=self.convertTextThread)
@@ -265,6 +279,8 @@ class MyWindow(QWidget):
             self.transcription_ready.emit(formatted_transcription)
 
     def update_transcription(self, transcription):
+        if self.number_conversion_checkbox.isChecked():
+            transcription = self.convert_chinese_numbers(transcription)
         self.textEdit.setText(transcription)
         # 将文本复制到剪贴板
         clipboard = QApplication.clipboard()
