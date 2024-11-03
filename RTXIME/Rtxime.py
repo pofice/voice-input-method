@@ -147,7 +147,7 @@ class MyWindow(QWidget):
         self.traditional_chars = set(library_text)
 
         # Add a checkbox for enabling/disabling number conversion
-        self.number_conversion_checkbox = QCheckBox("Enable Number Conversion", self)
+        self.number_conversion_checkbox = QCheckBox("阿拉伯数字", self)
         self.number_conversion_checkbox.setChecked(True)
         self.number_conversion_checkbox.move(10, self.height() - 50)
         self.number_conversion_checkbox.resize(180, 20)
@@ -313,6 +313,10 @@ class MyWindow(QWidget):
         # 让输入按钮靠左，转换按钮靠右
         self.button.move(0, int(self.height() - self.button.height()))
         self.convertButton.move(self.width() // 2, int(self.height() - self.convertButton.height()))
+        # 让复选框的宽度居中自适应窗口大小，高度保持不变
+        self.number_conversion_checkbox.resize(self.width() // 2, self.number_conversion_checkbox.height())
+        self.number_conversion_checkbox.move((self.width() - self.number_conversion_checkbox.width()) // 2, self.height() - 50)
+
 
 if __name__ == "__main__":
     app = QApplication([])
