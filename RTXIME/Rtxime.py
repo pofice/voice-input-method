@@ -148,7 +148,7 @@ class MyWindow(QWidget):
 
         # Add a checkbox for enabling/disabling number conversion
         self.number_conversion_checkbox = QCheckBox("阿拉伯数字", self)
-        self.number_conversion_checkbox.setChecked(True)
+        self.number_conversion_checkbox.setChecked(False)
         self.number_conversion_checkbox.move(10, self.height() - 50)
         self.number_conversion_checkbox.resize(180, 20)
 
