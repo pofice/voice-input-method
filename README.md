@@ -50,9 +50,9 @@ venv/bin/pip install -r requirements.txt
 
 - 然后在rime-ice输入法的用户文件夹中，找到用户文件夹，将其中的`rime_ice.userdb.txt`文件路径复制到本项目的`/RTXIME/rime_ice2hotwords.py`文件中的`file_path`变量中
 
-- 运行`rime_ice2hotwords.py`，它会自动提取热词，并生成hotwords.txt文件（默认忽略单字符中文热词，如需保留，请将`keep_single_char`变量设置为False）
+- 运行`rime_ice2hotwords.py`，它会自动提取热词，并生成`hotwords.txt`文件（默认忽略单字符中文热词，如需保留，请将`keep_single_char`变量设置为False）
 
-- 然后运行`Rtxime.py`，它会自动加载`hotwords.txt`文件，实现热词联动
+- 然后运行`Rtxime.py`，它会自动加载`hotwords.txt`文件，实现热词联动（运行时修改`hotwords.txt`会自动热重载）
 
 #
 
