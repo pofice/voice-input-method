@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QTextEdit, QCheckBox
 from PyQt5.QtGui import QMouseEvent, QIcon
-from PyQt5.QtCore import QProcess, Qt, QEvent, QTimer, pyqtSignal
+from PyQt5.QtCore import QProcess, Qt, QEvent, QTimer, pyqtSignal, QFileSystemWatcher
 from funasr_onnx import SeacoParaformer
 from pynput import keyboard
 from pynput.keyboard import Controller, Key
@@ -152,6 +152,14 @@ class MyWindow(QWidget):
         self.number_conversion_checkbox.move(10, self.height() - 50)
         self.number_conversion_checkbox.resize(180, 20)
 
+        # 添加文件监控器
+        self.watcher = QFileSystemWatcher()
+        self.watcher.addPath('hotwords.txt')
+        self.watcher.fileChanged.connect(self.reload_hotwords)
+        
+        # 初始加载hotwords
+        self.hotwords_str = self.load_hotwords()
+
     def convert_chinese_numbers(self, text):
         try:
             return cn2an.transform(text, "cn2an")
@@ -253,19 +261,29 @@ class MyWindow(QWidget):
         thread.start()
 
     def load_hotwords(self):
-        hotwords = []
-        max_length = 10  # Define the maximum length for hotwords
-        for filename in ['hotwords.txt']:
-            with open(filename, 'r') as f:
+        try:
+            hotwords = []
+            max_length = 10
+            with open('hotwords.txt', 'r', encoding='utf-8') as f:
                 for line in f:
                     if not line.startswith('#') and line.strip():
                         hotword = line.strip()
                         while len(hotword) > max_length:
-                            hotwords.append(hotword[:max_length])  # Add the first max_length characters
-                            hotword = hotword[max_length:]  # Keep the remaining part
-                        hotwords.append(hotword)  # Add the remaining part if any
-        # print("Hotwords:", hotwords)
-        return " ".join(hotwords)
+                            hotwords.append(hotword[:max_length])
+                            hotword = hotword[max_length:]
+                        hotwords.append(hotword)
+            print("Hotwords reloaded successfully")
+            return " ".join(hotwords)
+        except Exception as e:
+            print(f"Error loading hotwords: {e}")
+            return self.hotwords_str if hasattr(self, 'hotwords_str') else ""
+
+    def reload_hotwords(self):
+        print("Hotwords file changed, reloading...")
+        self.hotwords_str = self.load_hotwords()
+        # 重新添加文件监控（某些系统在文件修改后需要重新添加）
+        if 'hotwords.txt' not in self.watcher.files():
+            self.watcher.addPath('hotwords.txt')
 
     def transcribe_audio_thread(self):
         wav_path = ['./audio.wav']
