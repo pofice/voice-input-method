@@ -46,13 +46,13 @@ venv/bin/pip install -r requirements.txt
 
 - 此版本的部署方式同上，当前目录为`RTXIME`，但使用的模型不同，需要导出`RTXIME/model_export.py`中的模型
 
-- 安装rime-ice输入法，快速部署可以点这里：https://github.com/Mark24Code/rime-auto-deploy
+- （可选）安装rime-ice输入法，快速部署可以点这里：https://github.com/Mark24Code/rime-auto-deploy
 
-- 然后在rime-ice输入法的用户文件夹中，找到用户文件夹，将其中的`rime_ice.userdb.txt`文件路径复制到本项目的`/RTXIME/rime_ice2hotwords.py`文件中的`file_path`变量中
+  - 然后在rime-ice输入法的用户文件夹中，找到用户文件夹，将其中的`rime_ice.userdb.txt`文件路径复制到本项目的`/RTXIME/rime_ice2hotwords.py`文件中的`file_path`变量中
 
-- 运行`rime_ice2hotwords.py`，它会自动提取热词，并生成`hotwords.txt`文件（默认忽略单字符中文热词，如需保留，请将`keep_single_char`变量设置为False）
+  - 运行`rime_ice2hotwords.py`，它会自动提取热词，并生成`hotwords.txt`文件（默认忽略单字符中文热词，如需保留，请将`keep_single_char`变量设置为False）
 
-- 然后运行`Rtxime.py`，它会自动加载`hotwords.txt`文件，实现热词联动（运行时修改`hotwords.txt`会自动热重载）
+- 运行`Rtxime.py`，它会自动加载`hotwords.txt`文件，实现热词联动（运行时修改`hotwords.txt`会自动热重载）
 
 #
 
