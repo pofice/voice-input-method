@@ -214,21 +214,82 @@ class MyWindow(QWidget):
         self.listener.start()
 
         # 设置录音的参数
-        self.fs = 44100  # Sample rate
-        self.channels = 2  # Number of channels
+        # Try to detect device capabilities and pick safe defaults.
+        preferred_channels = 2
+        default_samplerate = 44100
+        detected_channels = None
+        detected_samplerate = None
 
-        # 创建一个用于存储录音数据的列表
-        self.myrecording = []
+        try:
+            info = sd.query_devices(kind='input')
+            if info:
+                detected_channels = int(info.get('max_input_channels', 1))
+                detected_samplerate = int(info.get('default_samplerate', default_samplerate))
+        except Exception as e:
+            print(f"Warning: could not query default input device: {e}")
 
-        # 创建一个录音流
-        self.stream = sd.InputStream(samplerate=self.fs, channels=self.channels, callback=self.audio_callback)
-        # 创建一个用于存储录音数据的列表
+        # If the default device reports zero input channels, try to find any input device
+        if detected_channels is None or detected_channels == 0:
+            try:
+                devices = sd.query_devices()
+                for d in devices:
+                    if d.get('max_input_channels', 0) > 0:
+                        detected_channels = int(d['max_input_channels'])
+                        detected_samplerate = int(d.get('default_samplerate', default_samplerate))
+                        break
+            except Exception as e:
+                print(f"Warning: could not enumerate devices: {e}")
+
+        # Finalize samplerate and channels with safe fallbacks
+        self.fs = detected_samplerate if detected_samplerate is not None else default_samplerate
+        if detected_channels is None or detected_channels < 1:
+            # No usable input device found; fall back to mono and let sounddevice decide later
+            self.channels = 1
+        else:
+            # Use preferred (stereo) if device supports it, otherwise use the maximum supported
+            self.channels = preferred_channels if detected_channels >= preferred_channels else detected_channels
+
+        # Create a recording buffer and state
         self.myrecording = []
-        # 添加一个状态变量，表示是否正在录音
         self.isRecording = False
-        # 开始录音
-        self.stream.start()
-        print("Recording started...")
+
+        # Try opening the InputStream, with fallbacks to mono or to default parameters
+        try:
+            print(f"Attempting to open InputStream with samplerate={self.fs}, channels={self.channels}")
+            self.stream = sd.InputStream(samplerate=self.fs, channels=self.channels, callback=self.audio_callback)
+            self.stream.start()
+            print("Recording started...")
+        except Exception as e:
+            print(f"Failed to open InputStream with channels={self.channels}, samplerate={self.fs}: {e}")
+            if self.channels != 1:
+                try:
+                    print("Retrying with channels=1 (mono)")
+                    self.channels = 1
+                    self.stream = sd.InputStream(samplerate=self.fs, channels=self.channels, callback=self.audio_callback)
+                    self.stream.start()
+                    print("Recording started (mono)...")
+                except Exception as e2:
+                    print(f"Failed to open InputStream as mono: {e2}")
+                    try:
+                        print("Retrying by letting sounddevice pick defaults (no samplerate/channels specified)")
+                        self.stream = sd.InputStream(callback=self.audio_callback)
+                        self.stream.start()
+                        print("Recording started (default device)...")
+                        # Update samplerate/channels from the opened stream if possible
+                        try:
+                            self.fs = int(self.stream.samplerate)
+                        except Exception:
+                            pass
+                    except Exception as e3:
+                        print(f"Unable to start audio input stream: {e3}")
+                        self.stream = None
+                        self.isRecording = False
+                        return
+            else:
+                print("Already attempted mono and failed. No input stream available.")
+                self.stream = None
+                self.isRecording = False
+                return
 
     def startRecording(self):
         # 清空录音数据
