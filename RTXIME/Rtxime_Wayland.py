@@ -11,6 +11,11 @@ import numpy as np
 import soundfile as sf
 import re
 import cn2an
+import subprocess
+
+def simulate_keyboard_input(text):
+    for char in text:
+        subprocess.run(['xdotool', 'type', char])
 
 class MyButton(QPushButton):
     def __init__(self, *args, **kwargs):
@@ -58,7 +63,7 @@ class MyWindow(QWidget):
         self.setWindowOpacity(0.8)
 
         # 设置全局热键
-        self.global_hotkey = keyboard.Key.f6
+        self.global_hotkey = keyboard.Key.pause
 
         # Connect the signal to a slot
         self.transcription_ready.connect(self.update_transcription)
@@ -371,11 +376,13 @@ class MyWindow(QWidget):
         clipboard = QApplication.clipboard()
         clipboard.setText(transcription)
 
-        # 模拟按下Ctrl+V
-        keyboard = Controller()
-        with keyboard.pressed(Key.ctrl):  # 直接使用Key.ctrl
-            keyboard.press('v')
-            keyboard.release('v')
+        # # 模拟按下Ctrl+V
+        # keyboard = Controller()
+        # with keyboard.pressed(Key.ctrl):  # 直接使用Key.ctrl
+        #     keyboard.press('v')
+        #     keyboard.release('v')
+
+        simulate_keyboard_input(transcription)
 
     # 让窗口可以拖拽
     def mousePressEvent(self, event):
