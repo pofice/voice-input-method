@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "voice-input-method"
+version = "2.0.0"
+description = "FunASR-based low-latency voice input method"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = [
+    "PyQt5>=5.15",
+    "pynput>=1.7",
+    "funasr-onnx>=0.3",
+    "opencc-python-reimplemented>=0.1.7",
+    "sounddevice>=0.4",
+    "soundfile>=0.12",
+    "numpy>=1.24",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+number = ["cn2an"]
+macos = ["pyobjc-framework-ApplicationServices"]
+dev = ["pytest", "ruff"]
+
+[project.scripts]
+voice-input = "voice_input_method.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["voice_input_method*"]
+
+[tool.setuptools.package-data]
+"voice_input_method" = ["resources/*"]

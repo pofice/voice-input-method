@@ -1,0 +1,44 @@
+# Voice Input Method Configuration
+# Copy this file and edit to match your setup.
+
+# ASR Model
+# model_type: "seaco_paraformer" (supports hotwords) or "paraformer" (basic)
+model_type: seaco_paraformer
+
+# Path to the FunASR model directory.
+# Download with: modelscope download --model iic/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch
+# Leave empty to use the default modelscope cache path.
+model_dir: ""
+
+# Use INT8 quantization for faster inference (recommended)
+quantize: true
+
+# Audio recording
+sample_rate: 44100
+channels: 2
+
+# Global hotkey to trigger voice input (hold to record, release to transcribe)
+# Options: scroll_lock, pause, f6, f7, f8, f9, f10, f11, f12
+hotkey: scroll_lock
+
+# UI
+window_title: Rtxime
+window_width: 200
+window_height: 100
+window_opacity: 0.8
+
+# Features
+enable_hotwords: true           # Load custom hotwords from hotwords.txt
+enable_number_conversion: false  # Show checkbox for Chinese→Arabic number conversion
+enable_traditional_chinese: true # Enable simplified↔traditional Chinese toggle
+
+# Platform override (auto-detected if empty)
+# Options: x11, wayland, windows, macos
+platform: ""
+
+# Resource file names (searched in CWD first, then package resources/)
+hotwords_file: hotwords.txt
+library_file: library.txt
+warmup_file: warmup.wav
+icon_file: icon.png
+style_file: style.css

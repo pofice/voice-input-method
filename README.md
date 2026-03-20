@@ -1,55 +1,108 @@
-# 基于funASR的低延迟离线语音输入法
+# Voice Input Method
 
-![Demo webpage](demo/rtxim.png)
+基于 FunASR 的低延迟语音输入法，支持 Linux (X11/Wayland)、Windows 和 macOS。
 
-长按即可输入，它会自动把输出文本复制到剪贴板，并在鼠标光标位置粘贴，同时在文本框中显示
+![Demo](demo/rtxim.png)
 
-点击繁简转换按钮，文本框中的内容会进行繁简转换，并将转换结果复制到剪贴板
+长按热键即可录音，松开后自动识别并输入到当前光标位置。支持繁简转换、自定义热词、中文数字转阿拉伯数字。
 
-本项目基于python3.10开发，要求有桌面环境，推荐kde。windodows下也可以运行（windows仅在python3.10.6测试有效）
+## 安装
 
-# 安装
-首先切换到RTXIME目录
+需要 Python 3.10+。
+
 ```shell
-cd RTXIME/
+# 从源码安装
+pip install .
+
+# 或带可选功能
+pip install ".[number]"     # 中文数字转换
+pip install ".[macos]"      # macOS 权限检测
 ```
 
-创建虚拟环境并安装`requirements.txt`所需的依赖 (windows系统安装`win_requirements.txt`中的依赖)
-```shell
-python3 -m venv venv
+## 模型准备
 
-# 安装依赖
-venv/bin/pip install -r requirements.txt
+首次使用前需要下载 FunASR 模型：
+
+```shell
+# 安装 modelscope
+pip install modelscope
+
+# 下载模型（支持热词的 SeacoParaformer）
+modelscope download --model iic/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch
 ```
 
-## 在运行之前，我们需要导出ONNX模型
+然后在 `config.yaml` 中设置 `model_dir` 为模型目录路径。
 
-运行`model_export.py`
+## 运行
 
-之后根据导出ONNX模型的目录，更改`Rtxime.py`文件的`model_dir`，确保一致，以便正常加载模型
+```shell
+# 使用默认配置
+voice-input
 
-# 运行
+# 或指定配置文件
+voice-input --config /path/to/config.yaml
 
-使用虚拟环境运行`Rtxime.py`即可，全局热键默认为 Scroll Lock 键，长按即可输入
+# 或直接运行模块
+python -m voice_input_method
+```
 
-# 与rime-ice输入法联动（可选，非必要）
+全局热键默认为 **Scroll Lock** 键，长按录音，松开识别。可在 `config.yaml` 中修改。
 
-## 也可以直接修改`hotwords.txt`实现自定义热词
+## 配置
 
-![Demo webpage](demo/rtxime.png)
+复制 `config.yaml` 并根据需要修改：
 
-使用rime-ice输入法，可以实现更好的输入体验，Rtxime可以提取rime-ice输入法的用户数据，实现热词联动。
+```yaml
+model_type: seaco_paraformer   # 模型类型
+model_dir: ""                   # 模型目录路径
+hotkey: scroll_lock             # 全局热键
+platform: ""                    # 留空自动检测，或指定 x11/wayland/windows/macos
+enable_hotwords: true           # 启用自定义热词
+enable_number_conversion: false # 启用中文数字转换
+```
 
-- （可选）安装rime-ice输入法，快速部署可以点这里：https://github.com/Mark24Code/rime-auto-deploy
+完整配置项见 [config.yaml](config.yaml)。
 
-  - 然后在rime-ice输入法的用户文件夹中，找到用户文件夹，将其中的`rime_ice.userdb.txt`文件路径复制到本项目的`/RTXIME/rime_ice2hotwords.py`文件中的`file_path`变量中
+## 自定义热词
 
-  - 运行`rime_ice2hotwords.py`，它会自动提取热词，并生成`hotwords.txt`文件（默认忽略单字符中文热词，如需保留，请将`keep_single_char`变量设置为False）
+编辑 `hotwords.txt`，每行一个词。运行时修改会自动热重载。
 
-- 运行`Rtxime.py`，它会自动加载`hotwords.txt`文件，实现热词联动（运行时修改`hotwords.txt`会自动热重载）
+### 与 rime-ice 联动
 
-我的另一种语音输入法的方案，使电脑可以直接使用手机的输入法输入
-https://github.com/pofice/linux-voice-input-method-2
+可从 rime-ice 输入法提取用户词库作为热词：
 
-funASR出处
-https://github.com/alibaba-damo-academy/FunASR
+```shell
+python tools/rime_ice2hotwords.py /path/to/rime_ice.userdb.txt -o hotwords.txt
+```
+
+## 平台支持
+
+| 平台 | 输入方式 | 备注 |
+|------|----------|------|
+| Linux X11 | 剪贴板 + Ctrl+V | 默认方式 |
+| Linux Wayland | xdotool 逐字输入 | 需安装 xdotool |
+| Windows | 剪贴板 + Ctrl+V | |
+| macOS | 剪贴板 + Cmd+V | 需授予辅助功能和麦克风权限 |
+
+## 项目结构
+
+```
+voice_input_method/
+├── app.py              # 主窗口（统一所有平台）
+├── audio.py            # 录音模块（自动设备检测）
+├── recognition.py      # ASR 模型封装
+├── text_processing.py  # 文本后处理
+├── hotwords.py         # 热词管理
+├── config.py           # 配置加载
+├── platform/           # 平台后端
+│   ├── x11.py
+│   ├── wayland.py
+│   ├── windows.py
+│   └── macos.py
+└── resources/          # 内置资源文件
+```
+
+## 致谢
+
+- [FunASR](https://github.com/alibaba-damo-academy/FunASR) - 阿里达摩院语音识别框架
+- [rime-ice](https://github.com/iDvel/rime-ice) - Rime 输入法配置
