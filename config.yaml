@@ -27,6 +27,21 @@ window_width: 200
 window_height: 100
 window_opacity: 0.8
 
+# Streaming recognition (real-time text while you speak)
+streaming: false
+
+# Path to streaming model directory.
+# Download with: modelscope download --model damo/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online
+streaming_model_dir: ""
+
+# Chunk size [left_context, body, right_context] in frames.
+# Default [5, 10, 5] = 600ms per chunk. Use [5, 8, 5] for 480ms lower latency.
+# chunk_size: [5, 10, 5]
+
+# 2pass mode: stream results during recording, then correct with offline model on release.
+# Gives real-time feedback + higher accuracy. Requires both models to be loaded.
+two_pass: false
+
 # Features
 enable_hotwords: true           # Load custom hotwords from hotwords.txt
 enable_number_conversion: false  # Show checkbox for Chinese→Arabic number conversion

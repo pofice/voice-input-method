@@ -63,6 +63,30 @@ enable_number_conversion: false # 启用中文数字转换
 
 完整配置项见 [config.yaml](config.yaml)。
 
+## 流式识别（实时出字）
+
+支持三种模式：
+
+| 模式 | 配置 | 效果 |
+|------|------|------|
+| 离线 | `streaming: false` | 录完后一次性识别（默认） |
+| 纯流式 | `streaming: true` | 说话时实时显示文字，松开即完成 |
+| 2pass | `streaming: true` + `two_pass: true` | 说话时实时显示，松开后用离线模型修正，兼顾速度和准确率 |
+
+启用流式需要额外下载在线模型：
+
+```shell
+modelscope download --model damo/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online
+```
+
+在 `config.yaml` 中配置：
+
+```yaml
+streaming: true
+streaming_model_dir: "/path/to/online/model"
+two_pass: true  # 可选，推荐开启
+```
+
 ## 自定义热词
 
 编辑 `hotwords.txt`，每行一个词。运行时修改会自动热重载。

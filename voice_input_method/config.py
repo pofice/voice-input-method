@@ -28,6 +28,12 @@ class Config:
     window_height: int = 100
     window_opacity: float = 0.8
 
+    # Streaming
+    streaming: bool = False  # Enable real-time streaming recognition
+    streaming_model_dir: str = ""  # Path to online model (required if streaming=True)
+    chunk_size: list = None  # [left, body, right] in frames, default [5, 10, 5]
+    two_pass: bool = False  # 2pass mode: stream + offline correction
+
     # Features
     enable_hotwords: bool = True
     enable_number_conversion: bool = False

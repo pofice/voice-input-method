@@ -1,4 +1,4 @@
-"""Main application window - unified across all platforms."""
+"""Main application window - unified across all platforms, supports offline and streaming."""
 
 import os
 import threading
@@ -6,12 +6,12 @@ import tempfile
 
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QTextEdit, QCheckBox
 from PyQt5.QtGui import QMouseEvent, QIcon
-from PyQt5.QtCore import Qt, QEvent, QTimer, pyqtSignal
+from PyQt5.QtCore import Qt, QEvent, pyqtSignal
 from pynput import keyboard
 
 from .config import Config, resolve_resource_path
 from .audio import AudioRecorder
-from .recognition import SpeechRecognizer
+from .recognition import SpeechRecognizer, StreamingRecognizer
 from .text_processing import clean_spaces, convert_chinese_numbers, ChineseConverter
 from .hotwords import HotwordManager
 from .platform import get_backend
@@ -79,11 +79,14 @@ class MainWindow(QWidget):
     """Main application window."""
 
     transcription_ready = pyqtSignal(str)
+    partial_text_ready = pyqtSignal(str)
     text_ready = pyqtSignal(str)
 
     def __init__(self, config: Config):
         super().__init__()
         self.config = config
+        self._streaming_enabled = config.streaming
+        self._two_pass = config.two_pass
 
         # Platform backend
         self.backend = get_backend(config.platform)
@@ -91,13 +94,31 @@ class MainWindow(QWidget):
         for msg in missing:
             print(f"WARNING: {msg}")
 
-        # Audio recorder
-        self.recorder = AudioRecorder(config.sample_rate, config.channels)
+        # Streaming recognizer
+        self.streaming_recognizer: StreamingRecognizer | None = None
+        if self._streaming_enabled:
+            chunk_size = config.chunk_size or [5, 10, 5]
+            self.streaming_recognizer = StreamingRecognizer(
+                model_dir=config.streaming_model_dir,
+                quantize=config.quantize,
+                chunk_size=chunk_size,
+            )
 
-        # Temp file for audio
+        # Audio recorder (with streaming chunk callback if enabled)
+        chunk_samples = 0
+        if self.streaming_recognizer:
+            chunk_samples = self.streaming_recognizer.step_samples
+        self.recorder = AudioRecorder(
+            sample_rate=config.sample_rate,
+            channels=config.channels,
+            on_chunk=self._on_audio_chunk if self._streaming_enabled else None,
+            chunk_samples=chunk_samples,
+        )
+
+        # Temp file for audio (offline mode / 2pass final pass)
         self._audio_path = os.path.join(tempfile.gettempdir(), "voice_input_audio.wav")
 
-        # ASR model
+        # Offline ASR model
         self.recognizer = SpeechRecognizer(
             model_type=config.model_type,
             model_dir=config.model_dir,
@@ -118,21 +139,28 @@ class MainWindow(QWidget):
 
         # Signals
         self.transcription_ready.connect(self._on_transcription)
+        self.partial_text_ready.connect(self._on_partial_text)
         self.text_ready.connect(self._on_text_update)
 
         # Threading
         self._convert_lock = threading.Lock()
+        self._streaming_text = ""
 
         # Build UI
         self._build_ui()
 
-        # Load model
+        # Load models
         print("Loading ASR model...")
         self.recognizer.load()
         warmup_path = resolve_resource_path(config, "warmup_file")
         hotwords = self.hotword_manager.hotwords_str if self.hotword_manager else ""
         self.recognizer.warmup(str(warmup_path), hotwords)
-        print("Model ready.")
+        print("Offline model ready.")
+
+        if self.streaming_recognizer:
+            print("Loading streaming model...")
+            self.streaming_recognizer.load()
+            print("Streaming model ready.")
 
         # Start audio
         self.recorder.start()
@@ -204,21 +232,63 @@ class MainWindow(QWidget):
         self._listener = keyboard.Listener(on_press=on_press, on_release=on_release)
         self._listener.start()
 
+    # --- Recording ---
+
     def _start_recording(self):
+        self._streaming_text = ""
+        if self.streaming_recognizer:
+            self.streaming_recognizer.reset()
         self.recorder.start_recording()
 
     def _stop_recording(self):
-        self.recorder.stop_recording(self._audio_path)
-        threading.Thread(target=self._transcribe, daemon=True).start()
+        # Flush remaining streaming audio
+        if self._streaming_enabled:
+            self.recorder.flush_streaming_buffer()
+            # Send final chunk to streaming recognizer
+            if self.streaming_recognizer:
+                import numpy as np
+                final_text = self.streaming_recognizer.feed_chunk(
+                    np.array([], dtype=np.float32), is_final=True
+                )
+                if final_text:
+                    self._streaming_text += final_text
 
-    def _transcribe(self):
+        self.recorder.stop_recording(self._audio_path)
+
+        if self._streaming_enabled and not self._two_pass:
+            # Pure streaming: use the accumulated streaming result
+            text = clean_spaces(self._streaming_text)
+            if text:
+                self.transcription_ready.emit(text)
+        else:
+            # Offline mode or 2pass final correction
+            threading.Thread(target=self._transcribe_offline, daemon=True).start()
+
+    def _on_audio_chunk(self, chunk):
+        """Called from audio thread with each 16kHz mono chunk during recording."""
+        if self.streaming_recognizer:
+            text = self.streaming_recognizer.feed_chunk(chunk, is_final=False)
+            if text:
+                self._streaming_text += text
+                display = clean_spaces(self._streaming_text)
+                self.partial_text_ready.emit(display)
+
+    def _transcribe_offline(self):
+        """Run offline transcription (used in non-streaming mode or as 2pass final pass)."""
         hotwords = self.hotword_manager.hotwords_str if self.hotword_manager else ""
         text = self.recognizer.transcribe(self._audio_path, hotwords)
         if text:
             text = clean_spaces(text)
             self.transcription_ready.emit(text)
 
+    # --- Text handling ---
+
+    def _on_partial_text(self, text: str):
+        """Update UI with streaming partial results (no paste yet)."""
+        self.textEdit.setText(text)
+
     def _on_transcription(self, text: str):
+        """Final transcription result - update UI and paste."""
         if self.number_checkbox and self.number_checkbox.isChecked():
             text = convert_chinese_numbers(text)
         self.textEdit.setText(text)
