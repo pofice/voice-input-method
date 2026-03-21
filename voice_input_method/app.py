@@ -60,7 +60,7 @@ class InputButton(QPushButton):
         if not self.isPressed:
             center = QPointF(self.rect().center())
             event = QMouseEvent(
-                QEvent.Type.MouseButtonPress, center,
+                QEvent.Type.MouseButtonPress, center, center,
                 Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton,
                 Qt.KeyboardModifier.NoModifier,
             )
@@ -71,7 +71,7 @@ class InputButton(QPushButton):
         if self.isPressed:
             center = QPointF(self.rect().center())
             event = QMouseEvent(
-                QEvent.Type.MouseButtonRelease, center,
+                QEvent.Type.MouseButtonRelease, center, center,
                 Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton,
                 Qt.KeyboardModifier.NoModifier,
             )
