@@ -4,9 +4,9 @@ import os
 import threading
 import tempfile
 
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QTextEdit, QCheckBox
-from PyQt5.QtGui import QMouseEvent, QIcon
-from PyQt5.QtCore import Qt, QEvent, pyqtSignal
+from PySide6.QtWidgets import QApplication, QWidget, QPushButton, QTextEdit, QCheckBox
+from PySide6.QtGui import QMouseEvent, QIcon
+from PySide6.QtCore import Qt, QEvent, Signal, QPointF
 from pynput import keyboard
 
 from .config import Config, resolve_resource_path
@@ -39,7 +39,7 @@ class InputButton(QPushButton):
         self.isPressed = False
         self.pressed.connect(self._on_pressed)
         self.released.connect(self._on_released)
-        self.setCursor(Qt.PointingHandCursor)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
 
     def _on_pressed(self):
         self.setStyleSheet("background-color: rgba(90, 133, 15, 0.8);")
@@ -58,18 +58,22 @@ class InputButton(QPushButton):
 
     def simulatePress(self):
         if not self.isPressed:
+            center = QPointF(self.rect().center())
             event = QMouseEvent(
-                QEvent.MouseButtonPress, self.rect().center(),
-                Qt.LeftButton, Qt.LeftButton, Qt.NoModifier,
+                QEvent.Type.MouseButtonPress, center,
+                Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
             )
             QApplication.postEvent(self, event)
             self.isPressed = True
 
     def simulateRelease(self):
         if self.isPressed:
+            center = QPointF(self.rect().center())
             event = QMouseEvent(
-                QEvent.MouseButtonRelease, self.rect().center(),
-                Qt.LeftButton, Qt.LeftButton, Qt.NoModifier,
+                QEvent.Type.MouseButtonRelease, center,
+                Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
             )
             QApplication.postEvent(self, event)
             self.isPressed = False
@@ -78,9 +82,9 @@ class InputButton(QPushButton):
 class MainWindow(QWidget):
     """Main application window."""
 
-    transcription_ready = pyqtSignal(str)
-    partial_text_ready = pyqtSignal(str)
-    text_ready = pyqtSignal(str)
+    transcription_ready = Signal(str)
+    partial_text_ready = Signal(str)
+    text_ready = Signal(str)
 
     def __init__(self, config: Config):
         super().__init__()
@@ -177,7 +181,7 @@ class MainWindow(QWidget):
 
     def _build_ui(self):
         self.setWindowOpacity(self.config.window_opacity)
-        self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
 
         icon_path = resolve_resource_path(self.config, "icon_file")
         if icon_path.exists():
@@ -314,13 +318,13 @@ class MainWindow(QWidget):
     # --- Window drag support ---
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self._drag_position = event.globalPos() - self.frameGeometry().topLeft()
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_position = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             event.accept()
 
     def mouseMoveEvent(self, event):
         if self._drag_position is not None:
-            self.move(event.globalPos() - self._drag_position)
+            self.move(event.globalPosition().toPoint() - self._drag_position)
             event.accept()
 
     # --- Responsive layout ---

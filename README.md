@@ -1,6 +1,6 @@
 # Voice Input Method
 
-基于 FunASR 的低延迟语音输入法，支持 Linux (X11/Wayland)、Windows 和 macOS。
+基于 FunASR + PySide6 (Qt6) 的低延迟语音输入法，支持 Linux (X11/Wayland)、Windows 和 macOS。
 
 ![Demo](demo/rtxim.png)
 
@@ -129,4 +129,5 @@ voice_input_method/
 ## 致谢
 
 - [FunASR](https://github.com/alibaba-damo-academy/FunASR) - 阿里达摩院语音识别框架
+- [PySide6](https://doc.qt.io/qtforpython-6/) - Qt for Python (LGPL)
 - [rime-ice](https://github.com/iDvel/rime-ice) - Rime 输入法配置

@@ -1,7 +1,7 @@
 """Hotword loading and file watching."""
 
 from pathlib import Path
-from PyQt5.QtCore import QFileSystemWatcher
+from PySide6.QtCore import QFileSystemWatcher
 
 
 class HotwordManager:

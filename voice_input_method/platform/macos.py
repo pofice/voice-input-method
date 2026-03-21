@@ -5,7 +5,7 @@ Requires Accessibility permissions in System Settings > Privacy & Security.
 
 import sys
 
-from PyQt5.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 from pynput.keyboard import Controller, Key
 
 from .base import PlatformBackend

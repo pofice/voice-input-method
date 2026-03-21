@@ -1,6 +1,6 @@
 """X11 backend: clipboard + Ctrl+V paste via pynput."""
 
-from PyQt5.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 from pynput.keyboard import Controller, Key
 
 from .base import PlatformBackend

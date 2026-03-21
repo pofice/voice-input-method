@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from PyQt5.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 
 from .config import load_config, resolve_resource_path
 from .app import MainWindow
@@ -26,7 +26,7 @@ def main():
 
     window = MainWindow(config)
     window.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":

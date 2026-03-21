@@ -10,7 +10,7 @@ readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
 dependencies = [
-    "PyQt5>=5.15",
+    "PySide6>=6.5",
     "pynput>=1.7",
     "funasr-onnx>=0.3",
     "opencc-python-reimplemented>=0.1.7",
