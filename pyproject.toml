@@ -18,10 +18,12 @@ dependencies = [
     "soundfile>=0.12",
     "numpy>=1.24",
     "PyYAML>=6.0",
+    "cn2an>=0.5",
+    "jieba>=0.42",
 ]
 
 [project.optional-dependencies]
-number = ["cn2an"]
+number = []  # cn2an now in core deps
 macos = ["pyobjc-framework-ApplicationServices"]
 dev = ["pytest", "pytest-cov", "ruff"]
 integration = ["pytest", "edge-tts", "librosa", "jieba", "modelscope", "torch"]
