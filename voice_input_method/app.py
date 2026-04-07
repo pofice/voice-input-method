@@ -10,7 +10,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtWidgets import QApplication, QWidget, QPushButton, QTextEdit, QCheckBox
+from PySide6.QtWidgets import QApplication, QWidget, QPushButton, QTextEdit
 from PySide6.QtGui import QMouseEvent, QIcon
 from PySide6.QtCore import Qt, QEvent, Signal, QPointF
 
@@ -96,6 +96,12 @@ class MainWindow(QWidget):
         warmup_path = resolve_resource_path(config, "warmup_file")
         self.engine.start()
         self.engine.warmup(str(warmup_path))
+        # Pre-load jieba dictionary to avoid delay on first transcription
+        if config.enable_number_conversion:
+            import logging
+            logging.getLogger("jieba").setLevel(logging.WARNING)
+            import jieba
+            jieba.initialize()
         print("Models ready.")
 
         # Recording indicator (macOS: native AppKit, others: no-op)
@@ -152,14 +158,6 @@ class MainWindow(QWidget):
         self.convertButton.move(self.width() // 2, self.height() - 32)
         self.convertButton.released.connect(self._convert_text)
 
-        # Number conversion checkbox
-        if self.config.enable_number_conversion:
-            self.number_checkbox = QCheckBox("阿拉伯数字", self)
-            self.number_checkbox.setChecked(False)
-            self.number_checkbox.move(10, self.height() - 50)
-            self.number_checkbox.resize(180, 20)
-        else:
-            self.number_checkbox = None
 
     # --- Recording lifecycle ---
 
@@ -233,12 +231,6 @@ class MainWindow(QWidget):
         self.convertButton.resize(self.width() // 2, btn_h)
         self.button.move(0, self.height() - btn_h)
         self.convertButton.move(self.width() // 2, self.height() - btn_h)
-        if self.number_checkbox:
-            self.number_checkbox.resize(self.width() // 2, self.number_checkbox.height())
-            self.number_checkbox.move(
-                (self.width() - self.number_checkbox.width()) // 2,
-                self.height() - 50,
-            )
 
     def closeEvent(self, event):
         self._indicator.shutdown()

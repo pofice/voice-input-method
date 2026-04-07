@@ -49,7 +49,7 @@ two_pass: false
 
 # Features
 enable_hotwords: true           # Load custom hotwords from hotwords.txt
-enable_number_conversion: false  # Show checkbox for Chinese→Arabic number conversion
+enable_number_conversion: true   # Show checkbox for Chinese→Arabic number conversion
 enable_traditional_chinese: true # Enable simplified↔traditional Chinese toggle
 
 # Platform override (auto-detected if empty)

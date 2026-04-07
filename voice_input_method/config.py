@@ -46,7 +46,7 @@ class Config:
 
     # Features
     enable_hotwords: bool = True
-    enable_number_conversion: bool = False
+    enable_number_conversion: bool = True
     enable_traditional_chinese: bool = True
 
     # Platform override (auto-detected if empty)
