@@ -9,11 +9,13 @@ from __future__ import annotations
 
 from .config import Config, DEFAULT_OFFLINE_MODELS, resolve_resource_path
 from .audio import AudioRecorder
+from .indicator import NullIndicator
 from .recognition import SpeechRecognizer, StreamingRecognizer
 from .text_processing import ChineseConverter
 from .hotwords import HotwordManager
 from .platform import get_backend
 from .engine import VoiceEngine, EngineConfig
+from .protocols import RecordingIndicator
 
 
 def create_engine(
@@ -96,3 +98,18 @@ def create_engine(
         recorder._on_chunk = engine.on_audio_chunk
 
     return engine
+
+
+def create_indicator(platform: str) -> RecordingIndicator:
+    """Create a platform-appropriate recording indicator.
+
+    macOS: native AppKit floating panel (PyObjC subprocess).
+    Other platforms / missing deps: silent no-op.
+    """
+    if platform == "macos":
+        try:
+            from .indicator import MacNativeIndicator
+            return MacNativeIndicator()
+        except (ImportError, OSError):
+            pass
+    return NullIndicator()

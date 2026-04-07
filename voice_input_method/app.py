@@ -11,7 +11,7 @@ from PySide6.QtGui import QMouseEvent, QIcon
 from PySide6.QtCore import Qt, QEvent, Signal, QPointF
 
 from .config import Config, resolve_resource_path
-from .factory import create_engine
+from .factory import create_engine, create_indicator
 from .hotkey import HotkeyListener
 
 
@@ -94,6 +94,9 @@ class MainWindow(QWidget):
         self.engine.warmup(str(warmup_path))
         print("Models ready.")
 
+        # Recording indicator (macOS: native AppKit, others: no-op)
+        self._indicator = create_indicator(config.platform)
+
         # Start hotkey listener
         self._hotkey = HotkeyListener(
             hotkey=config.hotkey,
@@ -130,8 +133,8 @@ class MainWindow(QWidget):
         self.button.setText("长按输入")
         self.button.resize(self.width() // 2, 32)
         self.button.move(0, self.height() - 32)
-        self.button.pressed.connect(lambda: self.engine.start_recording())
-        self.button.released.connect(lambda: self.engine.stop_recording())
+        self.button.pressed.connect(self._on_start_recording)
+        self.button.released.connect(self._on_stop_recording)
 
         # Convert button
         self.convertButton = InputButton(self)
@@ -148,6 +151,16 @@ class MainWindow(QWidget):
             self.number_checkbox.resize(180, 20)
         else:
             self.number_checkbox = None
+
+    # --- Recording lifecycle ---
+
+    def _on_start_recording(self):
+        self.engine.start_recording()
+        self._indicator.show()
+
+    def _on_stop_recording(self):
+        self.engine.stop_recording()
+        self._indicator.hide()
 
     # --- UI callbacks ---
 
@@ -188,6 +201,7 @@ class MainWindow(QWidget):
             )
 
     def closeEvent(self, event):
+        self._indicator.shutdown()
         self.engine.shutdown()
         self._hotkey.stop()
         if self.engine.hotword_provider and hasattr(self.engine.hotword_provider, "stop_watching"):

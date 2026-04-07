@@ -24,7 +24,7 @@ dependencies = [
 
 [project.optional-dependencies]
 number = []  # cn2an now in core deps
-macos = ["pyobjc-framework-ApplicationServices"]
+macos = ["pyobjc-framework-ApplicationServices", "pyobjc-framework-Cocoa"]
 dev = ["pytest", "pytest-cov", "ruff"]
 integration = ["pytest", "edge-tts", "librosa", "jieba", "modelscope", "torch"]
 

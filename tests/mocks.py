@@ -110,3 +110,24 @@ class MockHotwordProvider:
 
     def reload(self) -> None:
         pass
+
+
+class MockIndicator:
+    """Fake recording indicator that tracks show/hide calls."""
+
+    def __init__(self):
+        self.visible = False
+        self.show_count = 0
+        self.hide_count = 0
+        self.shutdown_called = False
+
+    def show(self) -> None:
+        self.visible = True
+        self.show_count += 1
+
+    def hide(self) -> None:
+        self.visible = False
+        self.hide_count += 1
+
+    def shutdown(self) -> None:
+        self.shutdown_called = True

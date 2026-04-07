@@ -91,3 +91,20 @@ class HotwordProvider(Protocol):
 
     def reload(self) -> None:
         ...
+
+
+@runtime_checkable
+class RecordingIndicator(Protocol):
+    """Shows/hides a visual recording indicator overlay."""
+
+    def show(self) -> None:
+        """Display the recording indicator."""
+        ...
+
+    def hide(self) -> None:
+        """Hide the recording indicator."""
+        ...
+
+    def shutdown(self) -> None:
+        """Release resources."""
+        ...

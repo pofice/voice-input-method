@@ -3,6 +3,7 @@
 from voice_input_method.protocols import (
     AudioSource,
     Recognizer,
+    RecordingIndicator,
     StreamingRecognizerProto,
     TextPaster,
     HotwordProvider,
@@ -13,6 +14,7 @@ from tests.mocks import (
     MockStreamingRecognizer,
     MockPaster,
     MockHotwordProvider,
+    MockIndicator,
 )
 
 
@@ -34,3 +36,7 @@ def test_mock_paster_satisfies_text_paster():
 
 def test_mock_hotword_satisfies_hotword_provider():
     assert isinstance(MockHotwordProvider(), HotwordProvider)
+
+
+def test_mock_indicator_satisfies_recording_indicator():
+    assert isinstance(MockIndicator(), RecordingIndicator)
