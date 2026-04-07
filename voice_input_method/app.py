@@ -6,13 +6,17 @@ Hotkey listening lives in hotkey.py.
 This file only handles PySide6 widgets and signals.
 """
 
+import time
+from datetime import datetime
+from pathlib import Path
+
 from PySide6.QtWidgets import QApplication, QWidget, QPushButton, QTextEdit, QCheckBox
 from PySide6.QtGui import QMouseEvent, QIcon
 from PySide6.QtCore import Qt, QEvent, Signal, QPointF
 
 from .config import Config, resolve_resource_path
 from .factory import create_engine, create_indicator
-from .hotkey import HotkeyListener
+from .hotkey import CombinedHotkeyListener
 
 
 class InputButton(QPushButton):
@@ -97,11 +101,16 @@ class MainWindow(QWidget):
         # Recording indicator (macOS: native AppKit, others: no-op)
         self._indicator = create_indicator(config.platform)
 
-        # Start hotkey listener
-        self._hotkey = HotkeyListener(
-            hotkey=config.hotkey,
-            on_press=lambda: self.button.simulatePress(),
-            on_release=lambda: self.button.simulateRelease(),
+        # Combined hotkey listener (single pynput Listener for both modes)
+        self._long_record_start = None
+        self._pending_long_save_duration = None
+        self._hotkey = CombinedHotkeyListener(
+            hold_hotkey=config.hotkey,
+            hold_on_press=lambda: self.button.simulatePress(),
+            hold_on_release=lambda: self.button.simulateRelease(),
+            toggle_hotkey=config.toggle_hotkey or None,
+            toggle_on_start=self._on_long_record_start,
+            toggle_on_stop=self._on_long_record_stop,
         )
         self._hotkey.start()
 
@@ -156,18 +165,49 @@ class MainWindow(QWidget):
 
     def _on_start_recording(self):
         self.engine.start_recording()
-        self._indicator.show()
+        self._indicator.show("dot")
 
     def _on_stop_recording(self):
         self.engine.stop_recording()
         self._indicator.hide()
 
+    # --- Long recording (toggle hotkey) ---
+
+    def _on_long_record_start(self):
+        self._long_record_start = time.time()
+        self.engine.start_recording()
+        self._indicator.show("ring")
+
+    def _on_long_record_stop(self):
+        duration = int(time.time() - self._long_record_start) if self._long_record_start else 0
+        self._long_record_start = None
+        self.engine.stop_recording()
+        self._indicator.hide()
+        # Save transcription to file after result callback fires
+        self._pending_long_save_duration = duration
+
+    def _on_transcription(self, text: str):
+        self.textEdit.setText(text)
+        # Save long recording result to file
+        if hasattr(self, "_pending_long_save_duration") and self._pending_long_save_duration is not None:
+            self._save_long_recording(text, self._pending_long_save_duration)
+            self._pending_long_save_duration = None
+
+    def _save_long_recording(self, text: str, duration: int):
+        """Save transcription to ~/voice-recordings/YYYY-MM-DD_HH-MM-SS_XXs.txt"""
+        if not text.strip():
+            return
+        save_dir = Path.home() / "voice-recordings"
+        save_dir.mkdir(exist_ok=True)
+        ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        filename = f"{ts}_{duration}s.txt"
+        filepath = save_dir / filename
+        filepath.write_text(text, encoding="utf-8")
+        print(f"Long recording saved: {filepath}")
+
     # --- UI callbacks ---
 
     def _on_partial_text(self, text: str):
-        self.textEdit.setText(text)
-
-    def _on_transcription(self, text: str):
         self.textEdit.setText(text)
 
     def _convert_text(self):

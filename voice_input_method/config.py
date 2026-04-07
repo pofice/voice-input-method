@@ -30,6 +30,7 @@ class Config:
 
     # Hotkey
     hotkey: str = "scroll_lock"
+    toggle_hotkey: str = ""  # Toggle mode: press once to start, again to stop (e.g. "alt")
 
     # UI
     window_title: str = "Rtxime"

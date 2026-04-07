@@ -97,8 +97,8 @@ class HotwordProvider(Protocol):
 class RecordingIndicator(Protocol):
     """Shows/hides a visual recording indicator overlay."""
 
-    def show(self) -> None:
-        """Display the recording indicator."""
+    def show(self, style: str = "dot") -> None:
+        """Display the recording indicator. Style: 'dot' or 'ring'."""
         ...
 
     def hide(self) -> None:

@@ -21,6 +21,11 @@ channels: 2
 # Options: scroll_lock, pause, f6, f7, f8, f9, f10, f11, f12, fn (macOS only, toggle mode)
 hotkey: fn
 
+# Toggle hotkey: press once to start recording, press again to stop and transcribe.
+# Useful for long recordings. Leave empty to disable.
+# Options: alt (macOS Option key), alt_r, caps_lock, f6-f12, etc.
+toggle_hotkey: alt
+
 # UI
 window_title: Rtxime
 window_width: 200
