@@ -56,18 +56,47 @@ modelscope download --model damo/speech_paraformer-large_asr_nat-zh-cn-16k-commo
 
 ## 运行
 
+### GUI 模式（人用）
+
 ```shell
-# 使用默认配置
-voice-input
-
-# 指定配置
+voice-input                              # 默认配置
 voice-input --config /path/to/config.yaml
-
-# 直接运行模块
-python -m voice_input_method
+python -m voice_input_method             # 直接运行模块
 ```
 
 全局热键默认 **Scroll Lock**，长按录音，松开识别。可在 `config.yaml` 中修改。
+
+### CLI 模式（AI / 脚本用）
+
+无需 GUI、麦克风或热键，吃 WAV 文件吐文字：
+
+```shell
+# 单文件转写
+voice-input-cli transcribe input.wav
+
+# 输出到文件
+voice-input-cli transcribe input.wav -o result.txt
+
+# JSON 格式（含耗时和元数据）
+voice-input-cli transcribe input.wav --json
+
+# 流式模式
+voice-input-cli transcribe input.wav --streaming
+
+# 带热词
+voice-input-cli transcribe input.wav --hotwords "遍历 数组 函数"
+
+# 指定模型
+voice-input-cli transcribe input.wav --model damo/speech_paraformer-...
+
+# 批量处理（输出 JSONL）
+voice-input-cli batch ./audio_dir/ -o results.jsonl
+
+# 查看版本和默认模型
+voice-input-cli info
+```
+
+CLI 是完全 headless 的，适合 AI agent、CI/CD、自动化测试场景。
 
 ## 配置
 

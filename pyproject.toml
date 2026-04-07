@@ -28,6 +28,7 @@ integration = ["pytest", "edge-tts", "librosa", "jieba", "modelscope", "torch"]
 
 [project.scripts]
 voice-input = "voice_input_method.__main__:main"
+voice-input-cli = "voice_input_method.cli:main"
 
 [tool.pytest.ini_options]
 markers = [
