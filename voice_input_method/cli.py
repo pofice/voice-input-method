@@ -45,7 +45,7 @@ def cmd_transcribe(args: argparse.Namespace) -> int:
     else:
         result_text = _transcribe_offline(
             wav_path,
-            model_dir=args.model or DEFAULT_OFFLINE_MODELS["paraformer"],
+            model_dir=args.model or DEFAULT_OFFLINE_MODELS["seaco_paraformer"],
             quantize=not args.no_quantize,
             hotwords=hotwords,
         )
@@ -89,8 +89,8 @@ def cmd_batch(args: argparse.Namespace) -> int:
 
     print(f"Loading model...", file=sys.stderr)
     recognizer = SpeechRecognizer(
-        model_type="paraformer",
-        model_dir=args.model or DEFAULT_OFFLINE_MODELS["paraformer"],
+        model_type="seaco_paraformer",
+        model_dir=args.model or DEFAULT_OFFLINE_MODELS["seaco_paraformer"],
         quantize=not args.no_quantize,
     )
     recognizer.load()
@@ -126,7 +126,7 @@ def cmd_info(args: argparse.Namespace) -> int:
     from . import __version__
     info = {
         "version": __version__,
-        "default_offline_model": DEFAULT_OFFLINE_MODELS["paraformer"],
+        "default_offline_model": DEFAULT_OFFLINE_MODELS["seaco_paraformer"],
         "default_streaming_model": DEFAULT_STREAMING_MODEL,
     }
     print(json.dumps(info, ensure_ascii=False, indent=2))
@@ -203,13 +203,13 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     def check_model_load():
         from .recognition import SpeechRecognizer
         rec = SpeechRecognizer(
-            model_type="paraformer",
-            model_dir=args.model or DEFAULT_OFFLINE_MODELS["paraformer"],
+            model_type="seaco_paraformer",
+            model_dir=args.model or DEFAULT_OFFLINE_MODELS["seaco_paraformer"],
             quantize=not args.no_quantize,
         )
         rec.load()
         recognizer_holder["rec"] = rec
-        model_id = args.model or DEFAULT_OFFLINE_MODELS["paraformer"]
+        model_id = args.model or DEFAULT_OFFLINE_MODELS["seaco_paraformer"]
         return f"loaded {model_id}"
 
     # 4. Run inference (silence is enough — we just need it not to crash)
@@ -276,7 +276,7 @@ def _transcribe_offline(
 ) -> str:
     print(f"Loading offline model: {model_dir}", file=sys.stderr)
     recognizer = SpeechRecognizer(
-        model_type="paraformer",
+        model_type="seaco_paraformer",
         model_dir=model_dir,
         quantize=quantize,
     )

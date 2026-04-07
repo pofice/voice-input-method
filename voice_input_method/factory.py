@@ -65,7 +65,7 @@ def create_engine(
 
     # Offline recognizer — fall back to pre-exported ONNX model when model_dir is empty
     model_dir = config.model_dir or DEFAULT_OFFLINE_MODELS.get(
-        config.model_type, DEFAULT_OFFLINE_MODELS["paraformer"]
+        config.model_type, DEFAULT_OFFLINE_MODELS["seaco_paraformer"]
     )
     recognizer = SpeechRecognizer(
         model_type=config.model_type,

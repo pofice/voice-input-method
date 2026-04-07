@@ -82,14 +82,14 @@ pip install ".[integration]"     # 集成测试需要的额外依赖
 
 ## 模型
 
-GUI 默认使用预导出的 ONNX 模型，**首次启动自动下载**，无需手动操作：
+默认使用预导出的 ONNX 模型（seaco_paraformer，支持热词），**首次启动自动下载**，无需手动操作：
 
-- 离线模型（seaco_paraformer）：`pofice/speech_seaco_paraformer_large_onnx`（~370MB）
-- 离线模型（paraformer）：`damo/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-onnx`（~250MB）
+- 离线模型：`pofice/speech_seaco_paraformer_large_onnx`（~370MB）
+- 流式模型（启用 streaming 时）：`damo/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online-onnx`
 
 模型缓存在 `~/.cache/modelscope/hub/models/`，下载后可离线使用。
 
-默认模型 ID 在 `voice_input_method/config.py` 的 `DEFAULT_OFFLINE_MODELS`，**这个 dict 是真相**。
+默认模型 ID 在 `voice_input_method/config.py` 的 `DEFAULT_OFFLINE_MODELS` / `DEFAULT_STREAMING_MODEL`，**这两个常量是真相**。
 
 ## 运行
 

@@ -45,14 +45,14 @@ class SpeechRecognizer:
         """Run a warmup inference to avoid first-call latency."""
         if self.model is None or not warmup_wav:
             return
-        kwargs = {"hotwords": hotwords} if hotwords and self.model_type == "seaco_paraformer" else {}
+        kwargs = {"hotwords": hotwords} if self.model_type == "seaco_paraformer" else {}
         self.model([warmup_wav], **kwargs)
 
     def transcribe(self, wav_path: str, hotwords: str = "") -> str:
         """Transcribe a WAV file and return the text."""
         if self.model is None:
             return ""
-        kwargs = {"hotwords": hotwords} if hotwords and self.model_type == "seaco_paraformer" else {}
+        kwargs = {"hotwords": hotwords} if self.model_type == "seaco_paraformer" else {}
         result = self.model([wav_path], **kwargs)
         if result and "preds" in result[0]:
             preds = result[0]["preds"]
