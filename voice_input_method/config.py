@@ -7,6 +7,15 @@ from pathlib import Path
 
 import yaml
 
+# Default model IDs (pre-exported ONNX, auto-download from ModelScope)
+DEFAULT_OFFLINE_MODELS = {
+    "seaco_paraformer": "pofice/speech_seaco_paraformer_large_onnx",
+    "paraformer": "damo/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-onnx",
+}
+DEFAULT_STREAMING_MODEL = (
+    "damo/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online-onnx"
+)
+
 
 @dataclass
 class Config:

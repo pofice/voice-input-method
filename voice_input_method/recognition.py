@@ -24,7 +24,7 @@ class SpeechRecognizer:
 
     def warmup(self, warmup_wav: str, hotwords: str = ""):
         """Run a warmup inference to avoid first-call latency."""
-        if self.model is None:
+        if self.model is None or not warmup_wav:
             return
         kwargs = {"hotwords": hotwords} if hotwords and self.model_type == "seaco_paraformer" else {}
         self.model([warmup_wav], **kwargs)

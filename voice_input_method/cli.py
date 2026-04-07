@@ -21,18 +21,9 @@ import sys
 import time
 from pathlib import Path
 
-from .config import load_config
+from .config import load_config, DEFAULT_OFFLINE_MODELS, DEFAULT_STREAMING_MODEL
 from .recognition import SpeechRecognizer, StreamingRecognizer
 from .text_processing import clean_spaces
-
-
-# Default model IDs (auto-download from ModelScope)
-DEFAULT_OFFLINE_MODEL = (
-    "damo/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-onnx"
-)
-DEFAULT_STREAMING_MODEL = (
-    "damo/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online-onnx"
-)
 
 
 def cmd_transcribe(args: argparse.Namespace) -> int:
@@ -54,7 +45,7 @@ def cmd_transcribe(args: argparse.Namespace) -> int:
     else:
         result_text = _transcribe_offline(
             wav_path,
-            model_dir=args.model or DEFAULT_OFFLINE_MODEL,
+            model_dir=args.model or DEFAULT_OFFLINE_MODELS["paraformer"],
             quantize=not args.no_quantize,
             hotwords=hotwords,
         )
@@ -99,7 +90,7 @@ def cmd_batch(args: argparse.Namespace) -> int:
     print(f"Loading model...", file=sys.stderr)
     recognizer = SpeechRecognizer(
         model_type="paraformer",
-        model_dir=args.model or DEFAULT_OFFLINE_MODEL,
+        model_dir=args.model or DEFAULT_OFFLINE_MODELS["paraformer"],
         quantize=not args.no_quantize,
     )
     recognizer.load()
@@ -135,7 +126,7 @@ def cmd_info(args: argparse.Namespace) -> int:
     from . import __version__
     info = {
         "version": __version__,
-        "default_offline_model": DEFAULT_OFFLINE_MODEL,
+        "default_offline_model": DEFAULT_OFFLINE_MODELS["paraformer"],
         "default_streaming_model": DEFAULT_STREAMING_MODEL,
     }
     print(json.dumps(info, ensure_ascii=False, indent=2))
@@ -213,12 +204,12 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         from .recognition import SpeechRecognizer
         rec = SpeechRecognizer(
             model_type="paraformer",
-            model_dir=args.model or DEFAULT_OFFLINE_MODEL,
+            model_dir=args.model or DEFAULT_OFFLINE_MODELS["paraformer"],
             quantize=not args.no_quantize,
         )
         rec.load()
         recognizer_holder["rec"] = rec
-        return f"loaded {args.model or DEFAULT_OFFLINE_MODEL}"
+        return f"loaded {args.model or DEFAULT_OFFLINE_MODELS["paraformer"]}"
 
     # 4. Run inference (silence is enough — we just need it not to crash)
     def check_inference():

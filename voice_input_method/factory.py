@@ -7,7 +7,7 @@ can call create_engine() without importing PySide6.
 
 from __future__ import annotations
 
-from .config import Config, resolve_resource_path
+from .config import Config, DEFAULT_OFFLINE_MODELS, resolve_resource_path
 from .audio import AudioRecorder
 from .recognition import SpeechRecognizer, StreamingRecognizer
 from .text_processing import ChineseConverter
@@ -60,10 +60,13 @@ def create_engine(
         hw_path = resolve_resource_path(config, "hotwords_file")
         hotword_manager = HotwordManager(hw_path)
 
-    # Offline recognizer
+    # Offline recognizer — fall back to pre-exported ONNX model when model_dir is empty
+    model_dir = config.model_dir or DEFAULT_OFFLINE_MODELS.get(
+        config.model_type, DEFAULT_OFFLINE_MODELS["paraformer"]
+    )
     recognizer = SpeechRecognizer(
         model_type=config.model_type,
-        model_dir=config.model_dir,
+        model_dir=model_dir,
         quantize=config.quantize,
     )
 

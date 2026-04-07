@@ -6,7 +6,7 @@
 model_type: seaco_paraformer
 
 # Path to the FunASR model directory.
-# Download with: modelscope download --model iic/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch
+# Download with: modelscope download --model pofice/speech_seaco_paraformer_large_onnx
 # Leave empty to use the default modelscope cache path.
 model_dir: ""
 
@@ -18,7 +18,7 @@ sample_rate: 44100
 channels: 2
 
 # Global hotkey to trigger voice input (hold to record, release to transcribe)
-# Options: scroll_lock, pause, f6, f7, f8, f9, f10, f11, f12
+# Options: scroll_lock, pause, f6, f7, f8, f9, f10, f11, f12, fn (macOS only, toggle mode)
 hotkey: scroll_lock
 
 # UI
