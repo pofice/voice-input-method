@@ -34,6 +34,7 @@ voice-input-cli = "voice_input_method.cli:main"
 [tool.pytest.ini_options]
 markers = [
     "integration: real ASR model tests (require model download, ~250MB)",
+    "sherpa: sherpa-onnx backend tests (require sherpa-onnx + models)",
 ]
 
 [tool.setuptools.packages.find]
