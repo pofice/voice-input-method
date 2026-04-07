@@ -32,8 +32,22 @@ _PROTECTED_PHRASES = frozenset({
 })
 
 
+def _merge_single_letters(text: str) -> str:
+    """Merge sequences of space-separated single letters: 'A I' → 'AI', 'K F C' → 'KFC'.
+    Preserves multi-char words like 'super powers'.
+    """
+    def _replace(m: re.Match) -> str:
+        return m.group(0).replace(" ", "")
+    # Match 2+ single letters separated by spaces (e.g. "A I", "K F C")
+    return re.sub(r"(?<![a-zA-Z])([a-zA-Z] ){1,}[a-zA-Z](?![a-zA-Z])", _replace, text)
+
+
 def clean_spaces(text: str) -> str:
-    """Remove unnecessary spaces between CJK characters and between CJK and Latin."""
+    """Remove unnecessary spaces between CJK characters and between CJK and Latin.
+    Also merge isolated single letters like 'A I' → 'AI', 'K F C' → 'KFC'.
+    """
+    # First merge single letters (before CJK-space removal changes boundaries)
+    text = _merge_single_letters(text)
     text = re.sub(r"(?<=[\u4e00-\u9fff]) (?=[\u4e00-\u9fff])", "", text)
     text = re.sub(r"(?<=[\u4e00-\u9fff]) (?=[a-zA-Z])", "", text)
     text = re.sub(r"(?<=[a-zA-Z]) (?=[\u4e00-\u9fff])", "", text)

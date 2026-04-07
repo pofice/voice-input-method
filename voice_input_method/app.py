@@ -129,7 +129,7 @@ class MainWindow(QWidget):
 
     def _build_ui(self):
         self.setWindowOpacity(self.config.window_opacity)
-        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+
 
         icon_path = resolve_resource_path(self.config, "icon_file")
         if icon_path.exists():
