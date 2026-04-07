@@ -81,9 +81,9 @@ class StreamingRecognizer:
         result = self.model(audio_in=audio_chunk, param_dict=param_dict)
         if result and len(result) > 0 and "preds" in result[0]:
             preds = result[0]["preds"]
-            if isinstance(preds, tuple):
-                return preds[0]
-            return preds
+            if isinstance(preds, (list, tuple)):
+                return str(preds[0]) if preds else ""
+            return str(preds)
         return ""
 
     def transcribe_array(self, audio: np.ndarray,

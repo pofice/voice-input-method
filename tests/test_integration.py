@@ -32,8 +32,9 @@ CHINESE_SPEECH_WAV = FIXTURES_DIR / "chinese_speech_16k.wav"
 CHINESE_SHORT_WAV = FIXTURES_DIR / "chinese_short_16k.wav"
 SILENCE_WAV = FIXTURES_DIR / "silence_16k.wav"
 
-# Standard Paraformer model ID (auto-downloads from ModelScope)
+# Model IDs (auto-download from ModelScope)
 PARAFORMER_MODEL = "damo/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-onnx"
+STREAMING_MODEL = "damo/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online-onnx"
 
 # Expected content in the test audio: "今天天气真不错，我们一起去公园散步吧"
 EXPECTED_KEYWORDS = ["今天", "天气", "不错", "公园", "散步"]
@@ -93,34 +94,85 @@ class TestOfflineRecognition:
 
 
 class TestStreamingRecognition:
-    """Test real streaming ASR with chunked audio input."""
+    """Test real streaming ASR with Paraformer-online model."""
 
     @pytest.fixture(scope="class")
     def streaming(self):
-        """Load streaming model once for all streaming tests."""
-        # Use the same offline model for streaming test via feed_chunk simulation
-        # Note: real streaming model requires a different model ID
-        # For now we test the offline recognizer's transcribe_array-like flow
-        recognizer = SpeechRecognizer(
-            model_type="paraformer",
-            model_dir=PARAFORMER_MODEL,
+        """Load the real streaming model once for all streaming tests."""
+        recognizer = StreamingRecognizer(
+            model_dir=STREAMING_MODEL,
             quantize=True,
+            chunk_size=[5, 10, 5],
         )
         recognizer.load()
         return recognizer
 
-    def test_chunked_offline_transcription(self, streaming):
-        """Simulate chunked processing by splitting audio and transcribing."""
+    def test_streaming_produces_text_incrementally(self, streaming):
+        """Feed real audio in chunks → get incremental text output."""
         audio, sr = sf.read(str(CHINESE_SPEECH_WAV), dtype="float32")
         if audio.ndim == 2:
             audio = audio.mean(axis=1)
 
-        # Transcribe full audio
-        text = streaming.transcribe(str(CHINESE_SPEECH_WAV))
+        streaming.reset()
+        step = streaming.step_samples
+        offset = 0
+        partials: list[str] = []
+        full_text = ""
+
+        while offset < len(audio):
+            remaining = len(audio) - offset
+            is_final = remaining <= step
+            chunk = audio[offset:offset + min(step, remaining)]
+
+            text = streaming.feed_chunk(chunk, is_final=is_final)
+            if text:
+                full_text += text
+                partials.append(text)
+
+            offset += step
+
+        full_text = clean_spaces(full_text)
+        print(f"Streaming partials: {partials}")
+        print(f"Streaming full text: {full_text}")
+
+        # Should have received multiple partial results
+        assert len(partials) >= 3, f"Expected ≥3 partials, got {len(partials)}: {partials}"
+
+        # Final accumulated text should contain expected keywords
+        for keyword in EXPECTED_KEYWORDS:
+            assert keyword in full_text, f"Expected '{keyword}' in streaming result: {full_text}"
+
+    def test_streaming_reset_between_utterances(self, streaming):
+        """Reset clears state — second utterance gets fresh results."""
+        audio, sr = sf.read(str(CHINESE_SHORT_WAV), dtype="float32")
+        if audio.ndim == 2:
+            audio = audio.mean(axis=1)
+
+        # First utterance
+        streaming.reset()
+        text1 = streaming.transcribe_array(audio)
+        text1 = clean_spaces(text1)
+
+        # Second utterance (same audio, should get same result)
+        text2 = streaming.transcribe_array(audio)
+        text2 = clean_spaces(text2)
+
+        print(f"Utterance 1: {text1}")
+        print(f"Utterance 2: {text2}")
+
+        # Both should produce meaningful text
+        assert len(text1) > 0, "First utterance produced no text"
+        assert len(text2) > 0, "Second utterance produced no text"
+
+    def test_streaming_silence(self, streaming):
+        """Streaming on silence should produce little/no text."""
+        silence = np.zeros(16000 * 2, dtype=np.float32)  # 2 seconds
+
+        streaming.reset()
+        text = streaming.transcribe_array(silence)
         text = clean_spaces(text)
 
-        for keyword in EXPECTED_KEYWORDS:
-            assert keyword in text, f"Expected '{keyword}' in: {text}"
+        assert len(text) < 20, f"Expected short/empty for silence, got: {text}"
 
 
 class TestFullPipeline:
