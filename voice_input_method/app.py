@@ -1,31 +1,18 @@
-"""Main application window - thin UI shell delegating to VoiceEngine."""
+"""Main application window — thin UI shell.
+
+All business logic lives in VoiceEngine (engine.py).
+All dependency assembly lives in factory.py.
+Hotkey listening lives in hotkey.py.
+This file only handles PySide6 widgets and signals.
+"""
 
 from PySide6.QtWidgets import QApplication, QWidget, QPushButton, QTextEdit, QCheckBox
 from PySide6.QtGui import QMouseEvent, QIcon
 from PySide6.QtCore import Qt, QEvent, Signal, QPointF
-from pynput import keyboard
 
 from .config import Config, resolve_resource_path
-from .audio import AudioRecorder
-from .recognition import SpeechRecognizer, StreamingRecognizer
-from .text_processing import ChineseConverter
-from .hotwords import HotwordManager
-from .platform import get_backend
-from .engine import VoiceEngine, EngineConfig
-
-
-# Map config hotkey names to pynput Key objects
-HOTKEY_MAP = {
-    "scroll_lock": keyboard.Key.scroll_lock,
-    "pause": keyboard.Key.pause,
-    "f6": keyboard.Key.f6,
-    "f7": keyboard.Key.f7,
-    "f8": keyboard.Key.f8,
-    "f9": keyboard.Key.f9,
-    "f10": keyboard.Key.f10,
-    "f11": keyboard.Key.f11,
-    "f12": keyboard.Key.f12,
-}
+from .factory import create_engine
+from .hotkey import HotkeyListener
 
 
 class InputButton(QPushButton):
@@ -77,82 +64,25 @@ class InputButton(QPushButton):
 
 
 class MainWindow(QWidget):
-    """Thin UI shell — all business logic lives in VoiceEngine."""
+    """Thin UI shell — delegates everything to VoiceEngine."""
 
     transcription_ready = Signal(str)
     partial_text_ready = Signal(str)
-    text_ready = Signal(str)
 
     def __init__(self, config: Config):
         super().__init__()
         self.config = config
 
-        # --- Assemble dependencies for VoiceEngine ---
-        backend = get_backend(config.platform)
-        missing = backend.check_permissions()
-        for msg in missing:
-            print(f"WARNING: {msg}")
-
-        streaming_recognizer: StreamingRecognizer | None = None
-        if config.streaming:
-            chunk_size = config.chunk_size or [5, 10, 5]
-            streaming_recognizer = StreamingRecognizer(
-                model_dir=config.streaming_model_dir,
-                quantize=config.quantize,
-                chunk_size=chunk_size,
-            )
-
-        engine_config = EngineConfig(
-            streaming=config.streaming,
-            two_pass=config.two_pass,
-            enable_number_conversion=config.enable_number_conversion,
-            enable_traditional_chinese=config.enable_traditional_chinese,
-            chunk_size=config.chunk_size or [5, 10, 5],
-        )
-
-        chinese_converter: ChineseConverter | None = None
-        if config.enable_traditional_chinese:
-            lib_path = resolve_resource_path(config, "library_file")
-            chinese_converter = ChineseConverter(lib_path)
-
-        self.hotword_manager: HotwordManager | None = None
-        if config.enable_hotwords:
-            hw_path = resolve_resource_path(config, "hotwords_file")
-            self.hotword_manager = HotwordManager(hw_path)
-
-        # Audio recorder — wired to engine's chunk callback if streaming
-        chunk_samples = streaming_recognizer.step_samples if streaming_recognizer else 0
-        self.recorder = AudioRecorder(
-            sample_rate=config.sample_rate,
-            channels=config.channels,
-            on_chunk=None,  # will be set after engine is created
-            chunk_samples=chunk_samples,
-        )
-
-        self.engine = VoiceEngine(
-            config=engine_config,
-            recorder=self.recorder,
-            recognizer=SpeechRecognizer(
-                model_type=config.model_type,
-                model_dir=config.model_dir,
-                quantize=config.quantize,
-            ),
-            paster=backend,
-            streaming_recognizer=streaming_recognizer,
-            hotword_provider=self.hotword_manager,
-            chinese_converter=chinese_converter,
+        # --- Create engine via factory (GUI-free assembly) ---
+        self.engine = create_engine(
+            config,
             on_partial=lambda text: self.partial_text_ready.emit(text),
             on_result=lambda text: self.transcription_ready.emit(text),
         )
 
-        # Wire streaming chunk callback now that engine exists
-        if config.streaming:
-            self.recorder._on_chunk = self.engine.on_audio_chunk
-
         # Signals → UI updates
         self.transcription_ready.connect(self._on_transcription)
         self.partial_text_ready.connect(self._on_partial_text)
-        self.text_ready.connect(self._on_text_update)
 
         # Build UI
         self._build_ui()
@@ -165,11 +95,16 @@ class MainWindow(QWidget):
         print("Models ready.")
 
         # Start hotkey listener
-        self._setup_hotkey()
+        self._hotkey = HotkeyListener(
+            hotkey=config.hotkey,
+            on_press=lambda: self.button.simulatePress(),
+            on_release=lambda: self.button.simulateRelease(),
+        )
+        self._hotkey.start()
 
-        # Start hotword file watcher
-        if self.hotword_manager:
-            self.hotword_manager.start_watching()
+        # Start hotword file watcher (Qt-dependent, belongs in UI layer)
+        if self.engine.hotword_provider and hasattr(self.engine.hotword_provider, "start_watching"):
+            self.engine.hotword_provider.start_watching()
 
         # Drag state
         self._drag_position = None
@@ -195,8 +130,8 @@ class MainWindow(QWidget):
         self.button.setText("长按输入")
         self.button.resize(self.width() // 2, 32)
         self.button.move(0, self.height() - 32)
-        self.button.pressed.connect(self._start_recording)
-        self.button.released.connect(self._stop_recording)
+        self.button.pressed.connect(lambda: self.engine.start_recording())
+        self.button.released.connect(lambda: self.engine.stop_recording())
 
         # Convert button
         self.convertButton = InputButton(self)
@@ -214,31 +149,6 @@ class MainWindow(QWidget):
         else:
             self.number_checkbox = None
 
-    def _setup_hotkey(self):
-        hotkey = HOTKEY_MAP.get(self.config.hotkey, keyboard.Key.scroll_lock)
-
-        def on_press(key):
-            try:
-                if key == hotkey and not self.button.isPressed:
-                    self.button.simulatePress()
-            except AttributeError:
-                pass
-
-        def on_release(key):
-            if key == hotkey and self.button.isPressed:
-                self.button.simulateRelease()
-
-        self._listener = keyboard.Listener(on_press=on_press, on_release=on_release)
-        self._listener.start()
-
-    # --- Delegate to engine ---
-
-    def _start_recording(self):
-        self.engine.start_recording()
-
-    def _stop_recording(self):
-        self.engine.stop_recording()
-
     # --- UI callbacks ---
 
     def _on_partial_text(self, text: str):
@@ -248,19 +158,8 @@ class MainWindow(QWidget):
         self.textEdit.setText(text)
 
     def _convert_text(self):
-        import threading
-        threading.Thread(target=self._convert_text_thread, daemon=True).start()
-
-    def _convert_text_thread(self):
         text = self.textEdit.toPlainText()
-        converted = self.engine.convert_chinese(text)
-        if converted:
-            self.text_ready.emit(converted)
-            clipboard = QApplication.clipboard()
-            clipboard.setText(converted)
-
-    def _on_text_update(self, text: str):
-        self.textEdit.setText(text)
+        self.engine.convert_chinese_async(text)
 
     # --- Window drag ---
 
@@ -290,8 +189,7 @@ class MainWindow(QWidget):
 
     def closeEvent(self, event):
         self.engine.shutdown()
-        if hasattr(self, "_listener"):
-            self._listener.stop()
-        if self.hotword_manager:
-            self.hotword_manager.stop_watching()
+        self._hotkey.stop()
+        if self.engine.hotword_provider and hasattr(self.engine.hotword_provider, "stop_watching"):
+            self.engine.hotword_provider.stop_watching()
         super().closeEvent(event)

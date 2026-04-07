@@ -160,6 +160,14 @@ class VoiceEngine:
                 return None
             return self.chinese_converter.convert(text)
 
+    def convert_chinese_async(self, text: str) -> None:
+        """Convert text in a background thread, then fire on_result callback."""
+        def _run():
+            converted = self.convert_chinese(text)
+            if converted and self.on_result:
+                self.on_result(converted)
+        threading.Thread(target=_run, daemon=True).start()
+
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
