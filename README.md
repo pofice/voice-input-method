@@ -6,33 +6,29 @@
 
 ## 一键部署（AI 友好）
 
+需要 Python 3.10+。如果系统没有，推荐用 `uv` 安装：
+
 ```shell
+# 如果没有 Python 3.10+
+uv python install 3.12
+
 git clone https://github.com/pofice/voice-input-method.git && \
   cd voice-input-method && \
-  pip install -e . && \
-  voice-input-cli doctor
+  uv venv --python 3.12 .venv && \
+  uv pip install -e . --python .venv/bin/python && \
+  .venv/bin/voice-input-cli doctor
 ```
 
-`doctor` 命令会自动验证依赖、下载模型、跑一次真实推理，并以结构化 JSON 报告每一步结果。
+`doctor` 命令会自动验证依赖、下载模型（~370MB，首次需要联网）、跑一次真实推理，并以结构化 JSON 报告每一步结果。
 退出码 `0` = 全部就绪，非 0 = 某一步有问题（具体在 stderr 和 JSON 里）。
 
-执行成功大约需要 30-60 秒（模型下载 ~250MB），完成后输出会包含：
+macOS 用户需要在**系统设置 → 隐私与安全性 → 辅助功能**中授权终端，否则热键和自动粘贴不工作。
 
-```
-OK — ready to use
-{
-  "ok": true,
-  "checks": [
-    {"check": "import core dependencies", "status": "ok", ...},
-    {"check": "audio I/O", "status": "ok", ...},
-    {"check": "ASR model load", "status": "ok", ...},
-    {"check": "ASR inference (silence)", "status": "ok", ...},
-    {"check": "real Chinese audio", "status": "ok", "detail": "recognized '今天天气真不错我们一起去公园散步吧'"}
-  ]
-}
-```
+之后启动 GUI：
 
-之后就可以直接用 `voice-input-cli transcribe your_audio.wav` 了。
+```shell
+.venv/bin/voice-input
+```
 
 ---
 
@@ -44,18 +40,20 @@ OK — ready to use
 |----------|---------|
 | 整体架构如何串起来 | `voice_input_method/factory.py` — 一个文件看完所有依赖装配 |
 | 核心业务流水线（录音→识别→后处理→粘贴） | `voice_input_method/engine.py` 的 `VoiceEngine` 类 |
-| 各组件的接口契约 | `voice_input_method/protocols.py` — 5 个 Protocol 定义 |
+| 各组件的接口契约 | `voice_input_method/protocols.py` — Protocol 定义 |
 | ASR 模型怎么调用 | `voice_input_method/recognition.py` |
 | 录音怎么做 | `voice_input_method/audio.py` |
-| 文本后处理（数字转换、繁简、热词） | `voice_input_method/text_processing.py`、`voice_input_method/hotwords.py` |
-| 命令行入口 / 各命令选项 | `voice_input_method/cli.py`，或运行 `voice-input-cli --help` / `... transcribe --help` |
+| 文本后处理（数字转换、繁简、热词、字母合并） | `voice_input_method/text_processing.py`、`voice_input_method/hotwords.py` |
+| 命令行入口 / 各命令选项 | `voice_input_method/cli.py`，或运行 `voice-input-cli --help` |
 | GUI 怎么和 engine 交互 | `voice_input_method/app.py` — 这是一个薄壳，业务逻辑全在 `engine` 里 |
+| 录音指示器（浮动红点） | `voice_input_method/indicator.py` — macOS 用 AppKit 子进程实现 |
 | 怎么写一个 mock 来测试 | `tests/mocks.py`，对照 `protocols.py` 实现就行 |
 | 完整 mock 测试示例 | `tests/test_engine.py` |
 | 用真实模型的端到端测试 | `tests/test_integration.py` |
 | 配置项有哪些 | `voice_input_method/config.py` 的 `Config` dataclass + `config.yaml` |
+| 默认模型 ID | `voice_input_method/config.py` 的 `DEFAULT_OFFLINE_MODELS` / `DEFAULT_STREAMING_MODEL` |
 | 平台后端如何加新平台 | `voice_input_method/platform/base.py` 的 `PlatformBackend` ABC，然后参考 `x11.py`/`macos.py` 等 |
-| 支持的全局热键 | `voice_input_method/hotkey.py` 的 `_HOTKEY_NAMES` |
+| 热键配置和 toggle 模式 | `voice_input_method/hotkey.py` — `CombinedHotkeyListener` 在一个 Listener 里处理两个热键 |
 
 **架构原则**（这一段不会变，可以信赖）：
 - 依赖只能从外向内：GUI/CLI → factory → engine → protocols → 具体实现
@@ -82,21 +80,16 @@ pip install ".[integration]"     # 集成测试需要的额外依赖
 
 具体的 extras 组合请直接看 `pyproject.toml` 的 `[project.optional-dependencies]`。
 
-## 模型下载
+## 模型
 
-```shell
-pip install modelscope
+GUI 默认使用预导出的 ONNX 模型，**首次启动自动下载**，无需手动操作：
 
-# 离线模型（CLI 默认会用这个 ID 自动下载）
-modelscope download --model damo/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-onnx
+- 离线模型（seaco_paraformer）：`pofice/speech_seaco_paraformer_large_onnx`（~370MB）
+- 离线模型（paraformer）：`damo/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-onnx`（~250MB）
 
-# 流式模型（启用 streaming 时需要）
-modelscope download --model damo/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online-onnx
-```
+模型缓存在 `~/.cache/modelscope/hub/models/`，下载后可离线使用。
 
-模型大小约 250MB / 160MB。在 `config.yaml` 设置 `model_dir`/`streaming_model_dir`，留空则用 modelscope 默认缓存。
-
-CLI 默认模型 ID 在 `voice_input_method/cli.py` 的 `DEFAULT_OFFLINE_MODEL` / `DEFAULT_STREAMING_MODEL`，**这两个常量是真相**。
+默认模型 ID 在 `voice_input_method/config.py` 的 `DEFAULT_OFFLINE_MODELS`，**这个 dict 是真相**。
 
 ## 运行
 
@@ -107,7 +100,13 @@ voice-input
 voice-input --config /path/to/config.yaml
 ```
 
-热键长按录音、松开识别。默认热键和所有可选键见 `voice_input_method/hotkey.py`。
+两种录音方式：
+- **长按热键**（默认 `scroll_lock`，macOS 可用 `fn`）：按住录音，松开识别
+- **Toggle 热键**（默认 `alt`/Option）：按一次开始长录音，再按一次停止并识别。转录结果自动保存到 `~/voice-recordings/`
+
+录音时屏幕底部会出现浮动指示器（红点 = 普通录音，红点 + 白圈 = 长录音）。
+
+热键在 `config.yaml` 的 `hotkey` 和 `toggle_hotkey` 里配置。
 
 ### CLI 模式（AI / 脚本 / CI）
 
@@ -122,6 +121,16 @@ voice-input-cli transcribe input.wav --json     # 结构化输出（含耗时）
 ```
 
 CLI 完全 headless：吃 WAV 文件吐文字，不需要 GUI/麦克风/键盘。结构化 JSON 输出适合 AI agent 拿来判断改动有没有效果。
+
+## 功能
+
+| 功能 | 默认 | 配置项 |
+|------|------|--------|
+| 中文数字→阿拉伯数字 | 开 | `enable_number_conversion` |
+| 降噪（识别前） | 开 | `enable_noise_reduction` |
+| 热词增强 | 开 | `enable_hotwords` + `hotwords.txt` |
+| 繁简转换 | 开 | `enable_traditional_chinese` |
+| 单字母合并（A I → AI） | 始终开启 | — |
 
 ## 测试
 
