@@ -1,8 +1,4 @@
-"""Main application window - unified across all platforms, supports offline and streaming."""
-
-import os
-import threading
-import tempfile
+"""Main application window - thin UI shell delegating to VoiceEngine."""
 
 from PySide6.QtWidgets import QApplication, QWidget, QPushButton, QTextEdit, QCheckBox
 from PySide6.QtGui import QMouseEvent, QIcon
@@ -12,9 +8,10 @@ from pynput import keyboard
 from .config import Config, resolve_resource_path
 from .audio import AudioRecorder
 from .recognition import SpeechRecognizer, StreamingRecognizer
-from .text_processing import clean_spaces, convert_chinese_numbers, ChineseConverter
+from .text_processing import ChineseConverter
 from .hotwords import HotwordManager
 from .platform import get_backend
+from .engine import VoiceEngine, EngineConfig
 
 
 # Map config hotkey names to pynput Key objects
@@ -80,7 +77,7 @@ class InputButton(QPushButton):
 
 
 class MainWindow(QWidget):
-    """Main application window."""
+    """Thin UI shell — all business logic lives in VoiceEngine."""
 
     transcription_ready = Signal(str)
     partial_text_ready = Signal(str)
@@ -89,85 +86,83 @@ class MainWindow(QWidget):
     def __init__(self, config: Config):
         super().__init__()
         self.config = config
-        self._streaming_enabled = config.streaming
-        self._two_pass = config.two_pass
 
-        # Platform backend
-        self.backend = get_backend(config.platform)
-        missing = self.backend.check_permissions()
+        # --- Assemble dependencies for VoiceEngine ---
+        backend = get_backend(config.platform)
+        missing = backend.check_permissions()
         for msg in missing:
             print(f"WARNING: {msg}")
 
-        # Streaming recognizer
-        self.streaming_recognizer: StreamingRecognizer | None = None
-        if self._streaming_enabled:
+        streaming_recognizer: StreamingRecognizer | None = None
+        if config.streaming:
             chunk_size = config.chunk_size or [5, 10, 5]
-            self.streaming_recognizer = StreamingRecognizer(
+            streaming_recognizer = StreamingRecognizer(
                 model_dir=config.streaming_model_dir,
                 quantize=config.quantize,
                 chunk_size=chunk_size,
             )
 
-        # Audio recorder (with streaming chunk callback if enabled)
-        chunk_samples = 0
-        if self.streaming_recognizer:
-            chunk_samples = self.streaming_recognizer.step_samples
-        self.recorder = AudioRecorder(
-            sample_rate=config.sample_rate,
-            channels=config.channels,
-            on_chunk=self._on_audio_chunk if self._streaming_enabled else None,
-            chunk_samples=chunk_samples,
+        engine_config = EngineConfig(
+            streaming=config.streaming,
+            two_pass=config.two_pass,
+            enable_number_conversion=config.enable_number_conversion,
+            enable_traditional_chinese=config.enable_traditional_chinese,
+            chunk_size=config.chunk_size or [5, 10, 5],
         )
 
-        # Temp file for audio (offline mode / 2pass final pass)
-        self._audio_path = os.path.join(tempfile.gettempdir(), "voice_input_audio.wav")
-
-        # Offline ASR model
-        self.recognizer = SpeechRecognizer(
-            model_type=config.model_type,
-            model_dir=config.model_dir,
-            quantize=config.quantize,
-        )
-
-        # Text processing
-        self.chinese_converter: ChineseConverter | None = None
+        chinese_converter: ChineseConverter | None = None
         if config.enable_traditional_chinese:
             lib_path = resolve_resource_path(config, "library_file")
-            self.chinese_converter = ChineseConverter(lib_path)
+            chinese_converter = ChineseConverter(lib_path)
 
-        # Hotwords
         self.hotword_manager: HotwordManager | None = None
         if config.enable_hotwords:
             hw_path = resolve_resource_path(config, "hotwords_file")
             self.hotword_manager = HotwordManager(hw_path)
 
-        # Signals
+        # Audio recorder — wired to engine's chunk callback if streaming
+        chunk_samples = streaming_recognizer.step_samples if streaming_recognizer else 0
+        self.recorder = AudioRecorder(
+            sample_rate=config.sample_rate,
+            channels=config.channels,
+            on_chunk=None,  # will be set after engine is created
+            chunk_samples=chunk_samples,
+        )
+
+        self.engine = VoiceEngine(
+            config=engine_config,
+            recorder=self.recorder,
+            recognizer=SpeechRecognizer(
+                model_type=config.model_type,
+                model_dir=config.model_dir,
+                quantize=config.quantize,
+            ),
+            paster=backend,
+            streaming_recognizer=streaming_recognizer,
+            hotword_provider=self.hotword_manager,
+            chinese_converter=chinese_converter,
+            on_partial=lambda text: self.partial_text_ready.emit(text),
+            on_result=lambda text: self.transcription_ready.emit(text),
+        )
+
+        # Wire streaming chunk callback now that engine exists
+        if config.streaming:
+            self.recorder._on_chunk = self.engine.on_audio_chunk
+
+        # Signals → UI updates
         self.transcription_ready.connect(self._on_transcription)
         self.partial_text_ready.connect(self._on_partial_text)
         self.text_ready.connect(self._on_text_update)
 
-        # Threading
-        self._convert_lock = threading.Lock()
-        self._streaming_text = ""
-
         # Build UI
         self._build_ui()
 
-        # Load models
+        # Start engine (loads models, starts audio)
         print("Loading ASR model...")
-        self.recognizer.load()
         warmup_path = resolve_resource_path(config, "warmup_file")
-        hotwords = self.hotword_manager.hotwords_str if self.hotword_manager else ""
-        self.recognizer.warmup(str(warmup_path), hotwords)
-        print("Offline model ready.")
-
-        if self.streaming_recognizer:
-            print("Loading streaming model...")
-            self.streaming_recognizer.load()
-            print("Streaming model ready.")
-
-        # Start audio
-        self.recorder.start()
+        self.engine.start()
+        self.engine.warmup(str(warmup_path))
+        print("Models ready.")
 
         # Start hotkey listener
         self._setup_hotkey()
@@ -236,78 +231,30 @@ class MainWindow(QWidget):
         self._listener = keyboard.Listener(on_press=on_press, on_release=on_release)
         self._listener.start()
 
-    # --- Recording ---
+    # --- Delegate to engine ---
 
     def _start_recording(self):
-        self._streaming_text = ""
-        if self.streaming_recognizer:
-            self.streaming_recognizer.reset()
-        self.recorder.start_recording()
+        self.engine.start_recording()
 
     def _stop_recording(self):
-        # Flush remaining streaming audio
-        if self._streaming_enabled:
-            self.recorder.flush_streaming_buffer()
-            # Send final chunk to streaming recognizer
-            if self.streaming_recognizer:
-                import numpy as np
-                final_text = self.streaming_recognizer.feed_chunk(
-                    np.array([], dtype=np.float32), is_final=True
-                )
-                if final_text:
-                    self._streaming_text += final_text
+        self.engine.stop_recording()
 
-        self.recorder.stop_recording(self._audio_path)
-
-        if self._streaming_enabled and not self._two_pass:
-            # Pure streaming: use the accumulated streaming result
-            text = clean_spaces(self._streaming_text)
-            if text:
-                self.transcription_ready.emit(text)
-        else:
-            # Offline mode or 2pass final correction
-            threading.Thread(target=self._transcribe_offline, daemon=True).start()
-
-    def _on_audio_chunk(self, chunk):
-        """Called from audio thread with each 16kHz mono chunk during recording."""
-        if self.streaming_recognizer:
-            text = self.streaming_recognizer.feed_chunk(chunk, is_final=False)
-            if text:
-                self._streaming_text += text
-                display = clean_spaces(self._streaming_text)
-                self.partial_text_ready.emit(display)
-
-    def _transcribe_offline(self):
-        """Run offline transcription (used in non-streaming mode or as 2pass final pass)."""
-        hotwords = self.hotword_manager.hotwords_str if self.hotword_manager else ""
-        text = self.recognizer.transcribe(self._audio_path, hotwords)
-        if text:
-            text = clean_spaces(text)
-            self.transcription_ready.emit(text)
-
-    # --- Text handling ---
+    # --- UI callbacks ---
 
     def _on_partial_text(self, text: str):
-        """Update UI with streaming partial results (no paste yet)."""
         self.textEdit.setText(text)
 
     def _on_transcription(self, text: str):
-        """Final transcription result - update UI and paste."""
-        if self.number_checkbox and self.number_checkbox.isChecked():
-            text = convert_chinese_numbers(text)
         self.textEdit.setText(text)
-        self.backend.paste_text(text)
 
     def _convert_text(self):
-        if self.chinese_converter:
-            threading.Thread(target=self._convert_text_thread, daemon=True).start()
+        import threading
+        threading.Thread(target=self._convert_text_thread, daemon=True).start()
 
     def _convert_text_thread(self):
-        with self._convert_lock:
-            text = self.textEdit.toPlainText()
-            if not text:
-                return
-            converted = self.chinese_converter.convert(text)
+        text = self.textEdit.toPlainText()
+        converted = self.engine.convert_chinese(text)
+        if converted:
             self.text_ready.emit(converted)
             clipboard = QApplication.clipboard()
             clipboard.setText(converted)
@@ -315,7 +262,7 @@ class MainWindow(QWidget):
     def _on_text_update(self, text: str):
         self.textEdit.setText(text)
 
-    # --- Window drag support ---
+    # --- Window drag ---
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -326,8 +273,6 @@ class MainWindow(QWidget):
         if self._drag_position is not None:
             self.move(event.globalPosition().toPoint() - self._drag_position)
             event.accept()
-
-    # --- Responsive layout ---
 
     def resizeEvent(self, event):
         btn_h = self.button.height()
@@ -344,7 +289,7 @@ class MainWindow(QWidget):
             )
 
     def closeEvent(self, event):
-        self.recorder.stop()
+        self.engine.shutdown()
         if hasattr(self, "_listener"):
             self._listener.stop()
         if self.hotword_manager:
