@@ -1,7 +1,25 @@
 """Speech recognition module wrapping FunASR models (offline + streaming)."""
 
+import os
+from pathlib import Path
+
 import numpy as np
 from typing import Callable
+
+
+def _resolve_model_dir(model_dir: str) -> str:
+    """Resolve a ModelScope model ID to a local cache path if available.
+
+    This allows offline usage when the model has been previously downloaded.
+    """
+    if os.path.isdir(model_dir):
+        return model_dir
+    # Check modelscope default cache location
+    cache_path = Path.home() / ".cache" / "modelscope" / "hub" / "models" / model_dir
+    if cache_path.is_dir():
+        return str(cache_path)
+    # Fall back to the original ID (will trigger download)
+    return model_dir
 
 
 class SpeechRecognizer:
@@ -15,12 +33,13 @@ class SpeechRecognizer:
 
     def load(self):
         """Load the ASR model."""
+        model_dir = _resolve_model_dir(self.model_dir)
         if self.model_type == "seaco_paraformer":
             from funasr_onnx import SeacoParaformer
-            self.model = SeacoParaformer(self.model_dir, batch_size=1, quantize=self.quantize)
+            self.model = SeacoParaformer(model_dir, batch_size=1, quantize=self.quantize)
         else:
             from funasr_onnx import Paraformer
-            self.model = Paraformer(self.model_dir, batch_size=1, quantize=self.quantize)
+            self.model = Paraformer(model_dir, batch_size=1, quantize=self.quantize)
 
     def warmup(self, warmup_wav: str, hotwords: str = ""):
         """Run a warmup inference to avoid first-call latency."""
@@ -63,7 +82,7 @@ class StreamingRecognizer:
         """Load the streaming ASR model."""
         from funasr_onnx.paraformer_online_bin import Paraformer
         self.model = Paraformer(
-            self.model_dir,
+            _resolve_model_dir(self.model_dir),
             batch_size=1,
             quantize=self.quantize,
             chunk_size=self.chunk_size,
