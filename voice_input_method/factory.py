@@ -47,6 +47,7 @@ def create_engine(
         two_pass=config.two_pass,
         enable_number_conversion=config.enable_number_conversion,
         enable_traditional_chinese=config.enable_traditional_chinese,
+        enable_noise_reduction=config.enable_noise_reduction,
         chunk_size=config.chunk_size or [5, 10, 5],
     )
 

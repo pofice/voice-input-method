@@ -15,6 +15,11 @@ from typing import Callable
 
 import numpy as np
 
+try:
+    import noisereduce as _nr  # pre-import to avoid delay on first use
+except ImportError:
+    _nr = None
+
 from .protocols import (
     AudioSource,
     HotwordProvider,
@@ -33,6 +38,7 @@ class EngineConfig:
     two_pass: bool = False
     enable_number_conversion: bool = False
     enable_traditional_chinese: bool = False
+    enable_noise_reduction: bool = True
     chunk_size: list[int] = field(default_factory=lambda: [5, 10, 5])
 
 
@@ -179,10 +185,27 @@ class VoiceEngine:
 
     def _transcribe_offline(self) -> None:
         """Run offline transcription (non-streaming or 2pass final pass)."""
-        text = self.recognizer.transcribe(self._audio_path, self._hotwords())
+        audio_path = self._audio_path
+        if self.config.enable_noise_reduction:
+            audio_path = self._denoise(audio_path)
+        text = self.recognizer.transcribe(audio_path, self._hotwords())
         if text:
             text = clean_spaces(text)
             self._deliver(text)
+
+    def _denoise(self, audio_path: str) -> str:
+        """Apply noise reduction to the recorded audio."""
+        try:
+            import soundfile as sf
+            if _nr is None:
+                return audio_path
+            data, sr = sf.read(audio_path, dtype="float32")
+            reduced = _nr.reduce_noise(y=data, sr=sr, prop_decrease=0.8)
+            denoised_path = audio_path.replace(".wav", "_denoised.wav")
+            sf.write(denoised_path, reduced, sr)
+            return denoised_path
+        except Exception:
+            return audio_path
 
     def _deliver(self, text: str) -> None:
         """Post-process and deliver the final result."""
