@@ -20,6 +20,7 @@ dependencies = [
     "PyYAML>=6.0",
     "cn2an>=0.5",
     "jieba>=0.42",
+    "noisereduce>=3.0",
 ]
 
 [project.optional-dependencies]
