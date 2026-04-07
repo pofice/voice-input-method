@@ -80,22 +80,33 @@ def _convert_token(token: str, cn2an_module) -> str:
     return converted
 
 
+def _contains_protected_substring(token: str) -> bool:
+    """True if any protected phrase appears as a substring of *token*."""
+    return any(p in token for p in _PROTECTED_PHRASES)
+
+
 def convert_chinese_numbers(text: str) -> str:
     """Convert Chinese number words in *text* to Arabic numerals.
 
-    Uses jieba for word segmentation so that fixed phrases like 一定/一起/一样
-    are recognized as whole tokens and skipped (instead of greedily replacing
-    the leading 一 with "1"). Only tokens containing Chinese numerals are
-    considered, and protected phrases are masked even when jieba merges them
-    into a longer compound.
+    Algorithm:
+    1. Tokenize with jieba (HMM=False for stable segmentation).
+    2. Walk tokens. Adjacent "plain number tokens" (containing only number
+       characters and not protected) are buffered and converted as one
+       merged string — this handles "一百二十" + "三" → "一百二十三" → "123".
+    3. A token equal to a protected phrase passes through unchanged.
+    4. A token containing a protected phrase as substring (e.g. jieba
+       merged "统一" into "统一标准") flushes the buffer, then masks the
+       protected phrase before running cn2an, then restores.
+    5. Tokens with no number characters flush the buffer and pass through.
 
     Examples::
 
-        "一定要去公园"          → "一定要去公园"   (一定 protected)
+        "一定要去公园"          → "一定要去公园"     (一定 protected)
         "三个苹果二十年"        → "3个苹果20年"
         "我有一个想法"          → "我有1个想法"
         "第一名得到三千块"      → "第一名得到3000块"
-        "统一标准"              → "统一标准"     (统一 protected within compound)
+        "统一标准"              → "统一标准"        (jieba 合并的复合词)
+        "一百二十三"            → "123"             (跨 token 合并)
 
     Falls back to passthrough if jieba or cn2an are not installed.
     """
@@ -106,16 +117,44 @@ def convert_chinese_numbers(text: str) -> str:
         import cn2an
         import jieba
     except ImportError:
-        # cn2an / jieba is optional — silently passthrough.
         return text
 
     result_parts: list[str] = []
+    buffer: list[str] = []  # accumulates contiguous plain number tokens
+
+    def flush_buffer() -> None:
+        """Convert the buffered number tokens as a single merged string."""
+        if not buffer:
+            return
+        merged = "".join(buffer)
+        try:
+            result_parts.append(cn2an.transform(merged, "cn2an"))
+        except Exception:
+            result_parts.append(merged)
+        buffer.clear()
+
     for token in jieba.cut(text, HMM=False):
         if not _has_chinese_number(token):
+            flush_buffer()
             result_parts.append(token)
             continue
-        result_parts.append(_convert_token(token, cn2an))
 
+        if token in _PROTECTED_PHRASES:
+            flush_buffer()
+            result_parts.append(token)
+            continue
+
+        if _contains_protected_substring(token):
+            # Protected phrase is embedded in a longer compound — handle in
+            # isolation so the buffer's accumulated context isn't polluted.
+            flush_buffer()
+            result_parts.append(_convert_token(token, cn2an))
+            continue
+
+        # Plain number-bearing token — accumulate.
+        buffer.append(token)
+
+    flush_buffer()
     return "".join(result_parts)
 
 

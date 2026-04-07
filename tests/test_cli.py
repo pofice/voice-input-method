@@ -139,8 +139,30 @@ class TestBatchWithMocks:
         assert all("elapsed_ms" in r for r in records)
 
 
+class TestDoctor:
+    """Doctor subcommand parses without crashing.
+
+    Real end-to-end run is in TestRealAudio (integration only)
+    because it downloads ~250MB of model.
+    """
+
+    def test_doctor_in_help(self):
+        with pytest.raises(SystemExit):
+            cli.main(["doctor", "--nonexistent-flag"])
+
+    def test_doctor_imports_check_only(self, capsys):
+        """Doctor's first check (imports) runs without external state."""
+        # We can't fully run doctor in unit tests because it would
+        # download a model. But we can verify the check function exists.
+        from voice_input_method.cli import cmd_doctor, build_parser
+        parser = build_parser()
+        # Verify "doctor" subcommand is registered
+        args = parser.parse_args(["doctor"])
+        assert args.func is cmd_doctor
+
+
 class TestRealAudio:
-    """Integration test using real fixture audio file."""
+    """Integration tests using real fixture audio file."""
 
     pytestmark = pytest.mark.integration
 
@@ -155,3 +177,20 @@ class TestRealAudio:
         # Expected content includes these keywords
         for kw in ["今天", "天气", "公园"]:
             assert kw in out, f"Expected '{kw}' in CLI output: {out}"
+
+    def test_cli_doctor_full(self, capsys):
+        """End-to-end doctor: imports + audio I/O + model load + inference."""
+        rc = cli.main(["doctor"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        data = json.loads(out)
+        assert data["ok"] is True
+        # All 5 checks should be present and OK
+        check_names = [c["check"] for c in data["checks"]]
+        assert "import core dependencies" in check_names
+        assert "audio I/O" in check_names
+        assert "ASR model load" in check_names
+        assert "ASR inference (silence)" in check_names
+        assert "real Chinese audio" in check_names
+        for c in data["checks"]:
+            assert c["status"] == "ok", f"{c['check']} failed: {c.get('error')}"

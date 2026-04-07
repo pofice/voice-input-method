@@ -142,6 +142,138 @@ def cmd_info(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """End-to-end self-test: verify deps, download model, run inference.
+
+    Designed to be the single command an AI agent runs after `pip install`
+    to confirm the project is fully usable. Prints structured progress so
+    the agent can detect partial failures.
+
+    Exit code 0 = healthy, non-zero = something is broken.
+    """
+    import importlib
+    import tempfile
+
+    checks: list[dict] = []
+    overall_ok = True
+
+    def step(name: str, fn):
+        """Run a single check, capture result."""
+        nonlocal overall_ok
+        print(f"  [..] {name}", file=sys.stderr, flush=True)
+        try:
+            detail = fn()
+            checks.append({"check": name, "status": "ok", "detail": detail})
+            print(f"\r  [OK] {name}: {detail}", file=sys.stderr, flush=True)
+            return True
+        except Exception as e:
+            checks.append({"check": name, "status": "fail", "error": str(e)})
+            print(f"\r  [FAIL] {name}: {e}", file=sys.stderr, flush=True)
+            overall_ok = False
+            return False
+
+    # 1. Core imports
+    def check_imports():
+        modules = [
+            "voice_input_method.engine",
+            "voice_input_method.factory",
+            "voice_input_method.recognition",
+            "voice_input_method.text_processing",
+            "voice_input_method.cli",
+            "funasr_onnx",
+            "jieba",
+            "cn2an",
+            "soundfile",
+            "numpy",
+        ]
+        for m in modules:
+            importlib.import_module(m)
+        return f"{len(modules)} modules importable"
+
+    # 2. Build a tiny test WAV (1s of silence)
+    test_wav_path = None
+
+    def check_audio_io():
+        nonlocal test_wav_path
+        import numpy as np
+        import soundfile as sf
+        tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+        tmp.close()
+        sf.write(tmp.name, np.zeros(16000, dtype=np.float32), 16000)
+        # Read back to confirm
+        data, sr = sf.read(tmp.name, dtype="float32")
+        assert sr == 16000 and len(data) == 16000
+        test_wav_path = tmp.name
+        return "16kHz mono WAV write+read OK"
+
+    # 3. Model download + load
+    recognizer_holder = {}
+
+    def check_model_load():
+        from .recognition import SpeechRecognizer
+        rec = SpeechRecognizer(
+            model_type="paraformer",
+            model_dir=args.model or DEFAULT_OFFLINE_MODEL,
+            quantize=not args.no_quantize,
+        )
+        rec.load()
+        recognizer_holder["rec"] = rec
+        return f"loaded {args.model or DEFAULT_OFFLINE_MODEL}"
+
+    # 4. Run inference (silence is enough — we just need it not to crash)
+    def check_inference():
+        rec = recognizer_holder["rec"]
+        text = rec.transcribe(test_wav_path)
+        # Doesn't matter what comes back; success means the pipeline works.
+        return f"inference returned {len(text)} chars"
+
+    # 5. Optionally test with real audio if a fixture exists
+    def check_real_audio():
+        from pathlib import Path
+        # Look for a test fixture in the repo (when run from source checkout)
+        candidates = [
+            Path(__file__).parent.parent / "tests" / "fixtures" / "chinese_speech_16k.wav",
+            Path.cwd() / "tests" / "fixtures" / "chinese_speech_16k.wav",
+        ]
+        fixture = next((p for p in candidates if p.exists()), None)
+        if fixture is None:
+            return "no fixture found (skipped)"
+        rec = recognizer_holder["rec"]
+        from .text_processing import clean_spaces
+        text = clean_spaces(rec.transcribe(str(fixture)))
+        # Expected content for the bundled fixture
+        expected = ["今天", "天气", "公园"]
+        missing = [k for k in expected if k not in text]
+        if missing:
+            raise RuntimeError(f"missing keywords {missing} in: {text!r}")
+        return f"recognized {text!r}"
+
+    print("voice-input-method doctor", file=sys.stderr)
+    step("import core dependencies", check_imports)
+    step("audio I/O", check_audio_io)
+    step("ASR model load", check_model_load)
+    step("ASR inference (silence)", check_inference)
+    step("real Chinese audio", check_real_audio)
+
+    # Cleanup
+    if test_wav_path:
+        try:
+            Path(test_wav_path).unlink()
+        except OSError:
+            pass
+
+    result = {
+        "ok": overall_ok,
+        "checks": checks,
+    }
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    print(
+        f"\n{'OK — ready to use' if overall_ok else 'FAILED — see checks above'}",
+        file=sys.stderr,
+    )
+    return 0 if overall_ok else 1
+
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
@@ -251,6 +383,15 @@ def build_parser() -> argparse.ArgumentParser:
     # info
     p_i = sub.add_parser("info", help="Show version and default model IDs")
     p_i.set_defaults(func=cmd_info)
+
+    # doctor
+    p_d = sub.add_parser(
+        "doctor",
+        help="End-to-end self-test (deps + model download + inference)",
+    )
+    p_d.add_argument("-m", "--model", help="Model ID to test (default: built-in)")
+    p_d.add_argument("--no-quantize", action="store_true")
+    p_d.set_defaults(func=cmd_doctor)
 
     return parser
 

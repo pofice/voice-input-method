@@ -4,6 +4,36 @@
 
 ![Demo](demo/rtxim.png)
 
+## 一键部署（AI 友好）
+
+```shell
+git clone https://github.com/pofice/voice-input-method.git && \
+  cd voice-input-method && \
+  pip install -e . && \
+  voice-input-cli doctor
+```
+
+`doctor` 命令会自动验证依赖、下载模型、跑一次真实推理，并以结构化 JSON 报告每一步结果。
+退出码 `0` = 全部就绪，非 0 = 某一步有问题（具体在 stderr 和 JSON 里）。
+
+执行成功大约需要 30-60 秒（模型下载 ~250MB），完成后输出会包含：
+
+```
+OK — ready to use
+{
+  "ok": true,
+  "checks": [
+    {"check": "import core dependencies", "status": "ok", ...},
+    {"check": "audio I/O", "status": "ok", ...},
+    {"check": "ASR model load", "status": "ok", ...},
+    {"check": "ASR inference (silence)", "status": "ok", ...},
+    {"check": "real Chinese audio", "status": "ok", "detail": "recognized '今天天气真不错我们一起去公园散步吧'"}
+  ]
+}
+```
+
+之后就可以直接用 `voice-input-cli transcribe your_audio.wav` 了。
+
 ---
 
 ## 给 AI agent 的导读

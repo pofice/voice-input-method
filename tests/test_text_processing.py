@@ -98,6 +98,10 @@ class TestConvertChineseNumbers:
         ("我有三个苹果一定要吃完", "我有3个苹果一定要吃完"),
         ("第一名得到三千块", "第一名得到3000块"),
         ("一定要买二十个苹果", "一定要买20个苹果"),
+        # Regression: jieba splits "一百二十三" into ["一百二十", "三"];
+        # the buffer must merge them before cn2an, otherwise → "1203".
+        ("一百二十三", "123"),
+        ("一千二百三十", "1230"),
     ])
     def test_real_numbers_converted(self, text, expected):
         """Genuine quantities should still be converted to digits."""
