@@ -10,12 +10,44 @@ from __future__ import annotations
 from .config import Config, DEFAULT_OFFLINE_MODELS, resolve_resource_path
 from .audio import AudioRecorder
 from .indicator import NullIndicator
-from .recognition import SpeechRecognizer, StreamingRecognizer
 from .text_processing import ChineseConverter
 from .hotwords import HotwordManager
 from .platform import get_backend
 from .engine import VoiceEngine, EngineConfig
-from .protocols import RecordingIndicator
+from .protocols import RecordingIndicator, Recognizer
+
+
+def _create_recognizer(config: Config) -> Recognizer:
+    """Create the appropriate recognizer based on config.recognizer_backend."""
+    backend = config.recognizer_backend
+
+    if backend == "sherpa-sensevoice":
+        from .recognition.sherpa_sensevoice import SherpaSenseVoiceRecognizer
+        return SherpaSenseVoiceRecognizer(
+            model_path=config.model_dir,
+            tokens_path=config.tokens_path if hasattr(config, "tokens_path") else "",
+            language="zh",
+            num_threads=4,
+        )
+
+    if backend == "sherpa-nano":
+        from .recognition.sherpa_nano import SherpaNanoRecognizer
+        model_dir = config.model_dir
+        return SherpaNanoRecognizer(
+            encoder_adaptor_path=f"{model_dir}/encoder_adaptor.int8.onnx",
+            llm_path=f"{model_dir}/llm.int8.onnx",
+            embedding_path=f"{model_dir}/embedding.int8.onnx",
+            tokenizer_path=f"{model_dir}/Qwen3-0.6B",
+            language="zh",
+            num_threads=4,
+        )
+
+    # Default: "funasr" — SeacoParaformer via funasr_onnx
+    from .recognition.funasr_recognizer import FunASRRecognizer
+    model_dir = config.model_dir or DEFAULT_OFFLINE_MODELS.get(
+        config.model_type, DEFAULT_OFFLINE_MODELS["seaco_paraformer"]
+    )
+    return FunASRRecognizer(model_dir=model_dir, quantize=config.quantize)
 
 
 def create_engine(
@@ -31,11 +63,12 @@ def create_engine(
     # Platform backend (text pasting)
     backend = get_backend(config.platform)
 
-    # Streaming recognizer (optional)
-    streaming_recognizer: StreamingRecognizer | None = None
-    if config.streaming:
+    # Streaming recognizer (optional, funasr backend only)
+    streaming_recognizer = None
+    if config.streaming and config.recognizer_backend == "funasr":
+        from .recognition.funasr_recognizer import FunASRStreamingRecognizer
         chunk_size = config.chunk_size or [5, 10, 5]
-        streaming_recognizer = StreamingRecognizer(
+        streaming_recognizer = FunASRStreamingRecognizer(
             model_dir=config.streaming_model_dir,
             quantize=config.quantize,
             chunk_size=chunk_size,
@@ -43,9 +76,8 @@ def create_engine(
 
     # Engine config (subset of Config without UI fields)
     engine_config = EngineConfig(
-        streaming=config.streaming,
-        two_pass=config.two_pass,
-        enable_number_conversion=config.enable_number_conversion,
+        streaming=config.streaming and config.recognizer_backend == "funasr",
+        two_pass=config.two_pass and config.recognizer_backend == "funasr",
         enable_traditional_chinese=config.enable_traditional_chinese,
         enable_noise_reduction=config.enable_noise_reduction,
         chunk_size=config.chunk_size or [5, 10, 5],
@@ -63,15 +95,8 @@ def create_engine(
         hw_path = resolve_resource_path(config, "hotwords_file")
         hotword_manager = HotwordManager(hw_path)
 
-    # Offline recognizer — fall back to pre-exported ONNX model when model_dir is empty
-    model_dir = config.model_dir or DEFAULT_OFFLINE_MODELS.get(
-        config.model_type, DEFAULT_OFFLINE_MODELS["seaco_paraformer"]
-    )
-    recognizer = SpeechRecognizer(
-        model_type=config.model_type,
-        model_dir=model_dir,
-        quantize=config.quantize,
-    )
+    # Offline recognizer — selected by backend config
+    recognizer = _create_recognizer(config)
 
     # Audio recorder — chunk callback wired after engine creation
     chunk_samples = streaming_recognizer.step_samples if streaming_recognizer else 0
@@ -95,7 +120,7 @@ def create_engine(
     )
 
     # Wire streaming chunk callback
-    if config.streaming:
+    if engine_config.streaming:
         recorder._on_chunk = engine.on_audio_chunk
 
     return engine

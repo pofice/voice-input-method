@@ -15,7 +15,7 @@ GUI (app.py)  /  CLI (cli.py)
         ↓
     protocols.py
         ↓
-audio / recognition / indicator / hotwords / platform / text_processing
+audio / recognition/ (funasr, sherpa-sensevoice, sherpa-nano) / indicator / hotwords / platform / text_processing
 ```
 
 - 依赖只能向下，不能向上

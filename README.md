@@ -41,9 +41,9 @@ macOS 用户需要在**系统设置 → 隐私与安全性 → 辅助功能**中
 | 整体架构如何串起来 | `voice_input_method/factory.py` — 一个文件看完所有依赖装配 |
 | 核心业务流水线（录音→识别→后处理→粘贴） | `voice_input_method/engine.py` 的 `VoiceEngine` 类 |
 | 各组件的接口契约 | `voice_input_method/protocols.py` — Protocol 定义 |
-| ASR 模型怎么调用 | `voice_input_method/recognition.py` |
+| ASR 识别后端（3 种可选） | `voice_input_method/recognition/` — funasr / sherpa-sensevoice / sherpa-nano |
 | 录音怎么做 | `voice_input_method/audio.py` |
-| 文本后处理（数字转换、繁简、热词、字母合并） | `voice_input_method/text_processing.py`、`voice_input_method/hotwords.py` |
+| 文本后处理（繁简、热词、字母合并） | `voice_input_method/text_processing.py`、`voice_input_method/hotwords.py` |
 | 命令行入口 / 各命令选项 | `voice_input_method/cli.py`，或运行 `voice-input-cli --help` |
 | GUI 怎么和 engine 交互 | `voice_input_method/app.py` — 这是一个薄壳，业务逻辑全在 `engine` 里 |
 | 录音指示器（浮动红点） | `voice_input_method/indicator.py` — macOS 用 AppKit 子进程实现 |
@@ -72,9 +72,10 @@ macOS 用户需要在**系统设置 → 隐私与安全性 → 辅助功能**中
 需要 Python 3.10+。
 
 ```shell
-pip install .                    # 基础安装（含 cn2an/jieba/funasr-onnx 等核心依赖）
+pip install .                    # 基础安装（funasr-onnx SeacoParaformer 默认后端）
 pip install -e ".[dev]"          # 开发环境（pytest + ruff）
-pip install ".[macos]"           # macOS 权限检测（需 PyObjC）
+pip install ".[sherpa]"          # SenseVoice / Fun-ASR-Nano 后端（需 sherpa-onnx）
+pip install ".[macos]"           # macOS 录音指示器（需 PyObjC）
 pip install ".[integration]"     # 集成测试需要的额外依赖
 ```
 
@@ -122,11 +123,20 @@ voice-input-cli transcribe input.wav --json     # 结构化输出（含耗时）
 
 CLI 完全 headless：吃 WAV 文件吐文字，不需要 GUI/麦克风/键盘。结构化 JSON 输出适合 AI agent 拿来判断改动有没有效果。
 
+## 识别后端
+
+在 `config.yaml` 的 `recognizer_backend` 切换：
+
+| 后端 | 模型 | 大小 | 热词 | 标点/ITN | 流式 | 安装 |
+|------|------|------|------|---------|------|------|
+| `funasr`（默认） | SeacoParaformer | 370MB | ✅ | ❌ | ✅ | 核心依赖 |
+| `sherpa-sensevoice` | SenseVoice-Small | 229MB(int8) | ❌ | ✅ 内置 | ❌ | `pip install ".[sherpa]"` |
+| `sherpa-nano` | Fun-ASR-Nano | ~800MB(int8) | ✅ | ✅ 内置 | ❌ | `pip install ".[sherpa]"` |
+
 ## 功能
 
 | 功能 | 默认 | 配置项 |
 |------|------|--------|
-| 中文数字→阿拉伯数字 | 开 | `enable_number_conversion` |
 | 降噪（识别前） | 开 | `enable_noise_reduction` |
 | 热词增强 | 开 | `enable_hotwords` + `hotwords.txt` |
 | 繁简转换 | 开 | `enable_traditional_chinese` |

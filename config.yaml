@@ -1,8 +1,14 @@
 # Voice Input Method Configuration
 # Copy this file and edit to match your setup.
 
+# Recognizer backend: "funasr" (SeacoParaformer), "sherpa-sensevoice", "sherpa-nano"
+# funasr: default, fast ONNX inference, supports hotwords and streaming
+# sherpa-sensevoice: built-in punctuation + ITN, small model (229MB int8)
+# sherpa-nano: LLM-based, best accuracy for dialects/accents, requires sherpa-onnx
+recognizer_backend: funasr
+
 # ASR Model
-# model_type: "seaco_paraformer" (supports hotwords) or "paraformer" (basic)
+# model_type: "seaco_paraformer" (supports hotwords)
 model_type: seaco_paraformer
 
 # Path to the FunASR model directory.
@@ -32,7 +38,7 @@ window_width: 200
 window_height: 100
 window_opacity: 0.8
 
-# Streaming recognition (real-time text while you speak)
+# Streaming recognition (real-time text while you speak, funasr backend only)
 streaming: false
 
 # Path to streaming model directory.
@@ -49,7 +55,6 @@ two_pass: false
 
 # Features
 enable_hotwords: true           # Load custom hotwords from hotwords.txt
-enable_number_conversion: true   # Show checkbox for Chinese→Arabic number conversion
 enable_traditional_chinese: true # Enable simplified↔traditional Chinese toggle
 enable_noise_reduction: true    # Apply noise reduction before recognition
 

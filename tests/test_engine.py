@@ -131,25 +131,6 @@ class TestStreamingRecognition:
 
 
 class TestTextProcessing:
-    def test_number_conversion_enabled(self, mock_recorder, mock_paster):
-        # Pre-warm jieba so its 0.3s first-load doesn't race the test sleep.
-        from voice_input_method.text_processing import convert_chinese_numbers
-        convert_chinese_numbers("预热")
-
-        recognizer = MockRecognizer(text="一百二十三")
-        engine = VoiceEngine(
-            config=EngineConfig(streaming=False, enable_number_conversion=True),
-            recorder=mock_recorder,
-            recognizer=recognizer,
-            paster=mock_paster,
-        )
-        engine.start()
-        engine.start_recording()
-        engine.stop_recording()
-        time.sleep(0.5)
-        assert len(mock_paster.pasted) == 1
-        assert mock_paster.pasted[0] == "123"
-
     def test_on_result_callback(self, mock_recorder, mock_paster):
         results: list[str] = []
         recognizer = MockRecognizer(text="回调 测试")

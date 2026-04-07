@@ -96,12 +96,6 @@ class MainWindow(QWidget):
         warmup_path = resolve_resource_path(config, "warmup_file")
         self.engine.start()
         self.engine.warmup(str(warmup_path))
-        # Pre-load jieba dictionary to avoid delay on first transcription
-        if config.enable_number_conversion:
-            import logging
-            logging.getLogger("jieba").setLevel(logging.WARNING)
-            import jieba
-            jieba.initialize()
         print("Models ready.")
 
         # Recording indicator (macOS: native AppKit, others: no-op)

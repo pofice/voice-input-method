@@ -27,6 +27,9 @@ class Config:
     sample_rate: int = 44100
     channels: int = 2
 
+    # Recognizer backend: "funasr" (SeacoParaformer), "sherpa-sensevoice", "sherpa-nano"
+    recognizer_backend: str = "funasr"
+
     # Hotkey
     hotkey: str = "scroll_lock"
     toggle_hotkey: str = ""  # Toggle mode: press once to start, again to stop (e.g. "alt")
@@ -45,7 +48,6 @@ class Config:
 
     # Features
     enable_hotwords: bool = True
-    enable_number_conversion: bool = True
     enable_traditional_chinese: bool = True
     enable_noise_reduction: bool = True
 

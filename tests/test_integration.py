@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from voice_input_method.recognition import SpeechRecognizer, StreamingRecognizer
+from voice_input_method.recognition.funasr_recognizer import FunASRRecognizer as SpeechRecognizer, FunASRStreamingRecognizer as StreamingRecognizer
 from voice_input_method.text_processing import clean_spaces
 from voice_input_method.engine import VoiceEngine, EngineConfig
 from tests.mocks import MockRecorder, MockPaster
@@ -33,7 +33,7 @@ CHINESE_SHORT_WAV = FIXTURES_DIR / "chinese_short_16k.wav"
 SILENCE_WAV = FIXTURES_DIR / "silence_16k.wav"
 
 # Model IDs (auto-download from ModelScope)
-PARAFORMER_MODEL = "damo/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-onnx"
+SEACO_MODEL = "pofice/speech_seaco_paraformer_large_onnx"
 STREAMING_MODEL = "damo/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online-onnx"
 
 # Expected content in the test audio: "今天天气真不错，我们一起去公园散步吧"
@@ -42,10 +42,9 @@ EXPECTED_KEYWORDS = ["今天", "天气", "不错", "公园", "散步"]
 
 @pytest.fixture(scope="module")
 def paraformer():
-    """Load the Paraformer model once for all tests in this module."""
+    """Load the SeacoParaformer model once for all tests in this module."""
     recognizer = SpeechRecognizer(
-        model_type="paraformer",
-        model_dir=PARAFORMER_MODEL,
+        model_dir=SEACO_MODEL,
         quantize=True,
     )
     recognizer.load()
@@ -181,8 +180,7 @@ class TestFullPipeline:
     def test_engine_with_real_recognizer(self):
         """VoiceEngine with real Paraformer, mock recorder, mock paster."""
         recognizer = SpeechRecognizer(
-            model_type="paraformer",
-            model_dir=PARAFORMER_MODEL,
+            model_dir=SEACO_MODEL,
             quantize=True,
         )
 

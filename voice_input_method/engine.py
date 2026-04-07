@@ -27,7 +27,7 @@ from .protocols import (
     StreamingRecognizerProto,
     TextPaster,
 )
-from .text_processing import clean_spaces, convert_chinese_numbers
+from .text_processing import clean_spaces
 
 
 @dataclass
@@ -36,7 +36,6 @@ class EngineConfig:
 
     streaming: bool = False
     two_pass: bool = False
-    enable_number_conversion: bool = False
     enable_traditional_chinese: bool = False
     enable_noise_reduction: bool = True
     chunk_size: list[int] = field(default_factory=lambda: [5, 10, 5])
@@ -209,8 +208,6 @@ class VoiceEngine:
 
     def _deliver(self, text: str) -> None:
         """Post-process and deliver the final result."""
-        if self.config.enable_number_conversion:
-            text = convert_chinese_numbers(text)
         if self.on_result:
             self.on_result(text)
         self.paster.paste_text(text)

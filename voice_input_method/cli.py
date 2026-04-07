@@ -22,7 +22,7 @@ import time
 from pathlib import Path
 
 from .config import load_config, DEFAULT_OFFLINE_MODELS, DEFAULT_STREAMING_MODEL
-from .recognition import SpeechRecognizer, StreamingRecognizer
+from .recognition.funasr_recognizer import FunASRRecognizer, FunASRStreamingRecognizer
 from .text_processing import clean_spaces
 
 
@@ -88,8 +88,7 @@ def cmd_batch(args: argparse.Namespace) -> int:
         return 1
 
     print(f"Loading model...", file=sys.stderr)
-    recognizer = SpeechRecognizer(
-        model_type="seaco_paraformer",
+    recognizer = FunASRRecognizer(
         model_dir=args.model or DEFAULT_OFFLINE_MODELS["seaco_paraformer"],
         quantize=not args.no_quantize,
     )
@@ -172,8 +171,6 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             "voice_input_method.text_processing",
             "voice_input_method.cli",
             "funasr_onnx",
-            "jieba",
-            "cn2an",
             "soundfile",
             "numpy",
         ]
@@ -201,9 +198,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     recognizer_holder = {}
 
     def check_model_load():
-        from .recognition import SpeechRecognizer
-        rec = SpeechRecognizer(
-            model_type="seaco_paraformer",
+        rec = FunASRRecognizer(
             model_dir=args.model or DEFAULT_OFFLINE_MODELS["seaco_paraformer"],
             quantize=not args.no_quantize,
         )
@@ -275,8 +270,7 @@ def _transcribe_offline(
     wav_path: Path, model_dir: str, quantize: bool, hotwords: str
 ) -> str:
     print(f"Loading offline model: {model_dir}", file=sys.stderr)
-    recognizer = SpeechRecognizer(
-        model_type="seaco_paraformer",
+    recognizer = FunASRRecognizer(
         model_dir=model_dir,
         quantize=quantize,
     )
@@ -292,7 +286,7 @@ def _transcribe_streaming(
     import soundfile as sf
 
     print(f"Loading streaming model: {model_dir}", file=sys.stderr)
-    recognizer = StreamingRecognizer(
+    recognizer = FunASRStreamingRecognizer(
         model_dir=model_dir,
         quantize=quantize,
         chunk_size=[5, 10, 5],
