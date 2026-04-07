@@ -1,10 +1,17 @@
-"""Audio recording module with automatic device detection, fallback, and streaming support."""
+"""Audio recording module with automatic device detection, fallback, and streaming support.
 
-from typing import Callable
+`sounddevice` is imported lazily inside `AudioRecorder.start()` so that
+non-recording code paths (CLI, headless tests) don't fail on systems
+without the system-level PortAudio library installed.
+"""
+
+from typing import TYPE_CHECKING, Any, Callable
 
 import numpy as np
-import sounddevice as sd
 import soundfile as sf
+
+if TYPE_CHECKING:  # pragma: no cover - type-checking only
+    import sounddevice as sd  # noqa: F401
 
 
 def resample_to_16k_mono(data: np.ndarray, orig_sr: int, channels: int) -> np.ndarray:
@@ -44,7 +51,7 @@ class AudioRecorder:
         self.channels: int = channels
         self.buffer: list = []
         self.is_recording: bool = False
-        self.stream: sd.InputStream | None = None
+        self.stream: Any = None  # sd.InputStream once started
 
         # Streaming support
         self._on_chunk = on_chunk
@@ -52,7 +59,14 @@ class AudioRecorder:
         self._streaming_buffer: np.ndarray = np.array([], dtype=np.float32)
 
     def start(self):
-        """Initialize and start the audio input stream with device detection and fallback."""
+        """Initialize and start the audio input stream.
+
+        sounddevice (and its underlying PortAudio system library) is only
+        imported here, so headless code paths that never call start() can
+        run on systems without PortAudio.
+        """
+        import sounddevice as sd  # lazy: PortAudio not needed for non-recording flows
+        self._sd = sd
         self.sample_rate, self.channels = self._detect_device()
         self.stream = self._open_stream()
         if self.stream:
@@ -60,6 +74,7 @@ class AudioRecorder:
 
     def _detect_device(self) -> tuple[int, int]:
         """Detect audio device capabilities and return (sample_rate, channels)."""
+        sd = self._sd
         try:
             info = sd.query_devices(kind="input")
             if info:
@@ -82,8 +97,9 @@ class AudioRecorder:
 
         return self._target_sample_rate, 1
 
-    def _open_stream(self) -> sd.InputStream | None:
+    def _open_stream(self):
         """Try to open an InputStream with fallbacks."""
+        sd = self._sd
         attempts = [
             {"samplerate": self.sample_rate, "channels": self.channels},
             {"samplerate": self.sample_rate, "channels": 1},
