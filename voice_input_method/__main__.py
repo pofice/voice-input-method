@@ -1,6 +1,7 @@
 """Entry point: python -m voice_input_method [--config path/to/config.yaml]"""
 
 import argparse
+import signal
 import sys
 
 from PySide6.QtWidgets import QApplication
@@ -17,6 +18,9 @@ def main():
     config = load_config(args.config)
 
     app = QApplication(sys.argv)
+
+    # Let Ctrl+C kill the app (Qt swallows SIGINT by default)
+    signal.signal(signal.SIGINT, lambda *_: app.quit())
 
     # Load stylesheet
     style_path = resolve_resource_path(config, "style_file")

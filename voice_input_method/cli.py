@@ -209,7 +209,8 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         )
         rec.load()
         recognizer_holder["rec"] = rec
-        return f"loaded {args.model or DEFAULT_OFFLINE_MODELS["paraformer"]}"
+        model_id = args.model or DEFAULT_OFFLINE_MODELS["paraformer"]
+        return f"loaded {model_id}"
 
     # 4. Run inference (silence is enough — we just need it not to crash)
     def check_inference():

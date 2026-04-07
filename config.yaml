@@ -19,7 +19,7 @@ channels: 2
 
 # Global hotkey to trigger voice input (hold to record, release to transcribe)
 # Options: scroll_lock, pause, f6, f7, f8, f9, f10, f11, f12, fn (macOS only, toggle mode)
-hotkey: scroll_lock
+hotkey: fn
 
 # UI
 window_title: Rtxime

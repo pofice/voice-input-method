@@ -43,7 +43,6 @@ def _run_indicator_process(
             NSApplication,
             NSBezierPath,
             NSColor,
-            NSFont,
             NSFloatingWindowLevel,
             NSMakeRect,
             NSPanel,
@@ -57,76 +56,20 @@ def _run_indicator_process(
     except ImportError:
         return
 
-    INDICATOR_SIZE = 60
+    INDICATOR_SIZE = 20
     BOTTOM_MARGIN = 80
 
-    class MicView(NSView):
-        """Custom view that draws a microphone icon on a dark circular background."""
+    class DotView(NSView):
+        """Simple red dot that pulses."""
 
         _pulse_alpha = 1.0
 
         def drawRect_(self, rect):
-            # Circular dark background
-            bg = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.1, 0.1, 0.1, 0.85)
-            bg.setFill()
-            circle = NSBezierPath.bezierPathWithOvalInRect_(rect)
-            circle.fill()
-
-            # Microphone icon (drawn with basic shapes)
-            cx = rect.size.width / 2
-            cy = rect.size.height / 2
-
-            white = NSColor.colorWithCalibratedRed_green_blue_alpha_(
-                1.0, 1.0, 1.0, self._pulse_alpha
-            )
-            white.setFill()
-            white.setStroke()
-
-            # Mic body (rounded rect)
-            mic_w, mic_h = 12, 20
-            mic_rect = NSMakeRect(cx - mic_w / 2, cy + 2, mic_w, mic_h)
-            mic_body = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
-                mic_rect, mic_w / 2, mic_w / 2
-            )
-            mic_body.fill()
-
-            # Mic arc (U-shape below the body)
-            arc_path = NSBezierPath.alloc().init()
-            arc_path.setLineWidth_(2.0)
-            import math
-
-            arc_cx = cx
-            arc_cy = cy + 2
-            arc_r = 11
-            # Draw arc from left to right (bottom half)
-            start_angle = 200  # degrees
-            end_angle = 340
-            arc_path.appendBezierPathWithArcWithCenter_radius_startAngle_endAngle_clockwise_(
-                (arc_cx, arc_cy), arc_r, start_angle, end_angle, True
-            )
-            arc_path.stroke()
-
-            # Stand (vertical line + base)
-            stand = NSBezierPath.alloc().init()
-            stand.setLineWidth_(2.0)
-            stand.moveToPoint_((cx, cy - 7))
-            stand.lineToPoint_((cx, cy - 13))
-            stand.stroke()
-
-            base = NSBezierPath.alloc().init()
-            base.setLineWidth_(2.0)
-            base.moveToPoint_((cx - 8, cy - 13))
-            base.lineToPoint_((cx + 8, cy - 13))
-            base.stroke()
-
-            # Red recording dot (top-right)
             red = NSColor.colorWithCalibratedRed_green_blue_alpha_(
                 0.95, 0.2, 0.2, self._pulse_alpha
             )
             red.setFill()
-            dot_rect = NSMakeRect(rect.size.width - 18, rect.size.height - 18, 10, 10)
-            dot = NSBezierPath.bezierPathWithOvalInRect_(dot_rect)
-            dot.fill()
+            NSBezierPath.bezierPathWithOvalInRect_(rect).fill()
 
         def setPulseAlpha_(self, alpha):
             self._pulse_alpha = alpha
@@ -136,7 +79,7 @@ def _run_indicator_process(
         """App delegate that manages the indicator panel and poll timer."""
 
         panel = objc.ivar()
-        mic_view = objc.ivar()
+        dot_view = objc.ivar()
         _pulse_up = objc.ivar()
         _current_alpha = objc.ivar()
 
@@ -162,13 +105,13 @@ def _run_indicator_process(
             panel.setIgnoresMouseEvents_(True)
             panel.setCollectionBehavior_(1 << 0)  # canJoinAllSpaces
 
-            mic_view = MicView.alloc().initWithFrame_(
+            dot_view = DotView.alloc().initWithFrame_(
                 NSMakeRect(0, 0, INDICATOR_SIZE, INDICATOR_SIZE)
             )
-            panel.setContentView_(mic_view)
+            panel.setContentView_(dot_view)
 
             self.panel = panel
-            self.mic_view = mic_view
+            self.dot_view = dot_view
 
             # Poll events from main process every 50ms
             NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
@@ -213,7 +156,7 @@ def _run_indicator_process(
                 if self._current_alpha <= 0.5:
                     self._pulse_up = True
 
-            self.mic_view.setPulseAlpha_(self._current_alpha)
+            self.dot_view.setPulseAlpha_(self._current_alpha)
 
     app = NSApplication.sharedApplication()
     app.setActivationPolicy_(1)  # NSApplicationActivationPolicyAccessory
