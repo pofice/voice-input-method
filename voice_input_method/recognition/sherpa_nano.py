@@ -25,6 +25,9 @@ class SherpaNanoRecognizer:
         language: str = "zh",
         num_threads: int = 4,
         provider: str = "cpu",
+        hotwords: str = "",
+        system_prompt: str = "You are a helpful assistant.",
+        user_prompt: str = "语音转写:",
     ):
         self._encoder_adaptor_path = encoder_adaptor_path
         self._llm_path = llm_path
@@ -33,6 +36,11 @@ class SherpaNanoRecognizer:
         self._language = language
         self._num_threads = num_threads
         self._provider = provider
+        # NOTE: sherpa-onnx bakes hotwords + prompts into the recognizer at
+        # construction time. Changing them requires reloading the recognizer.
+        self._hotwords = hotwords
+        self._system_prompt = system_prompt
+        self._user_prompt = user_prompt
         self._recognizer = None
 
     def load(self) -> None:
@@ -45,6 +53,9 @@ class SherpaNanoRecognizer:
             language=self._language,
             num_threads=self._num_threads,
             provider=self._provider,
+            hotwords=self._hotwords,
+            system_prompt=self._system_prompt,
+            user_prompt=self._user_prompt,
         )
 
     def warmup(self, warmup_wav: str, hotwords: str = "") -> None:
@@ -61,6 +72,18 @@ class SherpaNanoRecognizer:
     def transcribe(self, wav_path: str, hotwords: str = "") -> str:
         if self._recognizer is None:
             return ""
+        # sherpa-onnx funasr-nano bakes hotwords at construction time;
+        # per-call hotwords are silently ignored. Warn once if they differ
+        # from what was loaded so callers know to reload the recognizer.
+        if hotwords and hotwords != self._hotwords:
+            import warnings
+            warnings.warn(
+                "sherpa-nano hotwords are baked at load() time. "
+                "Per-call hotwords are ignored — reload the recognizer "
+                "with the new hotwords to take effect.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
         data, sr = sf.read(wav_path, dtype="float32")
         if data.ndim == 2:
             data = data.mean(axis=1)

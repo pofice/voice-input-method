@@ -37,6 +37,9 @@ class Config:
 
     # sherpa-nano backend paths (required when recognizer_backend="sherpa-nano")
     nano_model_dir: str = ""          # dir containing encoder_adaptor/llm/embedding/tokenizer
+    # sherpa-nano LLM prompts (optional; defaults match sherpa-onnx)
+    nano_system_prompt: str = "You are a helpful assistant."
+    nano_user_prompt: str = "语音转写:"
 
     # Hotkey
     hotkey: str = "scroll_lock"

@@ -28,6 +28,10 @@ sensevoice_language: "zh"   # zh / en / ja / ko / yue
 # --- sherpa-nano backend path (only used when recognizer_backend="sherpa-nano") ---
 # Directory must contain encoder_adaptor.int8.onnx, llm.int8.onnx, embedding.int8.onnx, Qwen3-0.6B/
 nano_model_dir: ""
+# LLM prompts for sherpa-nano (optional). You can stuff business context here
+# as a stronger alternative to hotwords, since the model is LLM-based.
+nano_system_prompt: "You are a helpful assistant."
+nano_user_prompt: "语音转写:"
 
 # Audio recording
 sample_rate: 44100

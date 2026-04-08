@@ -127,9 +127,11 @@ CLI 完全 headless：吃 WAV 文件吐文字，不需要 GUI/麦克风/键盘�
 
 | 后端 | 模型 | 大小 | 热词 | 标点/ITN | 流式 | 安装 |
 |------|------|------|------|---------|------|------|
-| `funasr`（默认） | SeacoParaformer | 370MB | ✅ | ❌ | ✅ | 核心依赖 |
-| `sherpa-sensevoice` | SenseVoice-Small | 229MB(int8) | ❌ | ✅ 内置 | ❌ | `pip install ".[sherpa]"` |
-| `sherpa-nano` | Fun-ASR-Nano (LLM) | ~800MB(int8) | ✅ | ✅ 内置 | ❌ | `pip install ".[sherpa]"` |
+| `funasr`（默认） | SeacoParaformer | 370MB | ✅ 每次调用 | ❌ | ✅ | 核心依赖 |
+| `sherpa-sensevoice` | SenseVoice-Small | 229MB(int8) | ❌（仅同音字替换 HR） | ✅ 内置 | ❌ | `pip install ".[sherpa]"` |
+| `sherpa-nano` | Fun-ASR-Nano (LLM) | ~800MB(int8) | ✅ 加载时烤入 | ✅ 内置 | ❌ | `pip install ".[sherpa]"` |
+
+> **热词差异**：`funasr` 每次 transcribe 都接受新热词；`sherpa-nano` 把热词烤进构造函数，修改 `hotwords.txt` 后必须重启程序才生效。`sherpa-nano` 还支持自定义 LLM 提示词（`nano_system_prompt` / `nano_user_prompt`），可以塞业务上下文比硬编热词更灵活。
 
 ### 模型下载
 
@@ -177,6 +179,8 @@ sensevoice_language: "zh"
 
 # sherpa-nano 字段（仅在该后端下生效）
 nano_model_dir: "/abs/path/sherpa-onnx-funasr-nano-int8-2025-12-30"
+nano_system_prompt: "You are a helpful assistant."   # 可塞业务上下文，如 "You transcribe coding/AI tool names"
+nano_user_prompt: "语音转写:"
 ```
 
 切换 sherpa 后端时，缺必填字段会立刻抛出 `ConfigError`，错误消息会指出缺哪个字段。`streaming: true` 只对 `funasr` 生效，配合 sherpa 后端会发 `RuntimeWarning` 并自动禁用。

@@ -21,12 +21,16 @@ class ConfigError(ValueError):
     """Raised when required configuration for a backend is missing or invalid."""
 
 
-def _create_recognizer(config: Config) -> Recognizer:
+def _create_recognizer(config: Config, hotwords: str = "") -> Recognizer:
     """Create the appropriate recognizer based on config.recognizer_backend.
 
     Raises ConfigError when a sherpa backend is selected but required paths
     are missing, so the user gets a clear message instead of a cryptic
     FileNotFoundError from deep inside sherpa-onnx.
+
+    *hotwords* is forwarded to backends that bake hotwords at construction
+    time (currently sherpa-nano). funasr loads hotwords per-call so it
+    ignores this argument.
     """
     backend = config.recognizer_backend
 
@@ -59,6 +63,9 @@ def _create_recognizer(config: Config) -> Recognizer:
             tokenizer_path=f"{model_dir}/Qwen3-0.6B",
             language="zh",
             num_threads=4,
+            hotwords=hotwords,
+            system_prompt=config.nano_system_prompt,
+            user_prompt=config.nano_user_prompt,
         )
 
     if backend != "funasr":
@@ -127,8 +134,11 @@ def create_engine(
         hw_path = resolve_resource_path(config, "hotwords_file")
         hotword_manager = HotwordManager(hw_path)
 
-    # Offline recognizer — selected by backend config
-    recognizer = _create_recognizer(config)
+    # Offline recognizer — selected by backend config.
+    # Pass hotwords through for backends that bake them at construction time
+    # (sherpa-nano); funasr ignores this and reads hotwords per-call.
+    initial_hotwords = hotword_manager.hotwords_str if hotword_manager else ""
+    recognizer = _create_recognizer(config, hotwords=initial_hotwords)
 
     # Audio recorder — chunk callback wired after engine creation
     chunk_samples = streaming_recognizer.step_samples if streaming_recognizer else 0
