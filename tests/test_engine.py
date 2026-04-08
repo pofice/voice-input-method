@@ -63,6 +63,25 @@ class TestOfflineRecognition:
         time.sleep(0.3)
         assert mock_paster.pasted == ["今天天气不错"]
 
+    def test_applies_corrections_before_strip(self, mock_recorder, mock_paster):
+        recognizer = MockRecognizer(text="用Cloud Code写代码。")
+        hotword_provider = MockHotwordProvider(
+            corrections={"Cloud Code": "Claude Code"}
+        )
+        engine = VoiceEngine(
+            config=EngineConfig(streaming=False, strip_trailing_punctuation=True),
+            recorder=mock_recorder,
+            recognizer=recognizer,
+            paster=mock_paster,
+            hotword_provider=hotword_provider,
+        )
+        engine.start()
+        engine.start_recording()
+        engine.stop_recording()
+        time.sleep(0.3)
+        # correction applied first, then trailing punctuation stripped
+        assert mock_paster.pasted == ["用Claude Code写代码"]
+
     def test_keeps_trailing_punctuation_when_disabled(self, mock_recorder, mock_paster):
         recognizer = MockRecognizer(text="今天天气不错。")
         engine = VoiceEngine(
