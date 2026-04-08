@@ -125,13 +125,61 @@ CLI 完全 headless：吃 WAV 文件吐文字，不需要 GUI/麦克风/键盘�
 
 ## 识别后端
 
-在 `config.yaml` 的 `recognizer_backend` 切换：
-
 | 后端 | 模型 | 大小 | 热词 | 标点/ITN | 流式 | 安装 |
 |------|------|------|------|---------|------|------|
 | `funasr`（默认） | SeacoParaformer | 370MB | ✅ | ❌ | ✅ | 核心依赖 |
 | `sherpa-sensevoice` | SenseVoice-Small | 229MB(int8) | ❌ | ✅ 内置 | ❌ | `pip install ".[sherpa]"` |
-| `sherpa-nano` | Fun-ASR-Nano | ~800MB(int8) | ✅ | ✅ 内置 | ❌ | `pip install ".[sherpa]"` |
+| `sherpa-nano` | Fun-ASR-Nano (LLM) | ~800MB(int8) | ✅ | ✅ 内置 | ❌ | `pip install ".[sherpa]"` |
+
+### 模型下载
+
+`funasr` 后端首次启动自动下载，无需手动操作。`sherpa-*` 后端需要手动下载：
+
+```shell
+# sherpa-sensevoice
+curl -SL -O https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2
+tar xjf sherpa-onnx-sense-voice-*.tar.bz2
+
+# sherpa-nano
+curl -SL -O https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-funasr-nano-int8-2025-12-30.tar.bz2
+tar xjf sherpa-onnx-funasr-nano-*.tar.bz2
+```
+
+### CLI 切换（一次性）
+
+```shell
+# funasr（默认，可省略 --backend）
+voice-input-cli transcribe input.wav
+
+# sherpa-sensevoice
+voice-input-cli transcribe input.wav \
+  --backend sherpa-sensevoice \
+  --sensevoice-model ./sherpa-onnx-sense-voice-.../model.int8.onnx \
+  --sensevoice-tokens ./sherpa-onnx-sense-voice-.../tokens.txt
+
+# sherpa-nano（--nano-model-dir 是目录，目录内必须有 encoder_adaptor / llm / embedding / Qwen3-0.6B）
+voice-input-cli transcribe input.wav \
+  --backend sherpa-nano \
+  --nano-model-dir ./sherpa-onnx-funasr-nano-int8-2025-12-30
+```
+
+同样的参数适用于 `batch` 和 `doctor` 子命令。
+
+### config.yaml 切换（GUI 常驻）
+
+```yaml
+recognizer_backend: sherpa-nano   # funasr / sherpa-sensevoice / sherpa-nano
+
+# sherpa-sensevoice 字段（仅在该后端下生效）
+sensevoice_model_path: "/abs/path/model.int8.onnx"
+sensevoice_tokens_path: "/abs/path/tokens.txt"
+sensevoice_language: "zh"
+
+# sherpa-nano 字段（仅在该后端下生效）
+nano_model_dir: "/abs/path/sherpa-onnx-funasr-nano-int8-2025-12-30"
+```
+
+切换 sherpa 后端时，缺必填字段会立刻抛出 `ConfigError`，错误消息会指出缺哪个字段。`streaming: true` 只对 `funasr` 生效，配合 sherpa 后端会发 `RuntimeWarning` 并自动禁用。
 
 ## 功能
 

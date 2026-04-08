@@ -68,63 +68,26 @@ perf(engine): 启动时预加载 jieba 词典
 - 描述用中文，简明扼要
 - 每个功能点一个 commit，不要混多个不相关改动
 
-## 切换识别后端
+## 识别后端约定
 
-项目支持三个识别后端，由 `config.recognizer_backend` 选择：
+> 用户操作（CLI 命令、config.yaml 字段、模型下载）见 README《识别后端》章节。本节只写 AI 改代码时的契约。
 
-| backend | 模型 | 体积 | 特点 | 依赖 |
-|---------|------|------|------|------|
-| `funasr`（默认） | SeacoParaformer | ~370MB | 支持热词，streaming，funasr_onnx | 核心依赖 |
-| `sherpa-sensevoice` | SenseVoice-Small | ~229MB (int8) | 内置标点+ITN，多语言，快 | `pip install -e ".[sherpa]"` |
-| `sherpa-nano` | Fun-ASR-Nano (LLM) | ~800MB (int8) | 方言/口音/噪声最强 | `pip install -e ".[sherpa]"` |
+**契约**：
 
-### CLI 方式（一次性切换）
+- 所有后端都必须实现 `protocols.Recognizer`（load / warmup / transcribe）
+- `factory._create_recognizer` 是唯一的实例化入口，禁止在 `cli.py` / `app.py` / 测试外硬编码具体后端类
+- 缺必填配置时必须抛 `factory.ConfigError` 并指出具体字段，**不允许**让 sherpa-onnx / funasr-onnx 自己爆 FileNotFoundError
+- `streaming: true` 仅对 `funasr` 后端有效；其他后端组合时 factory 必须发 `RuntimeWarning` 并禁用 streaming，不允许静默失败
 
-```shell
-# funasr（默认，不传 --backend 也行）
-voice-input-cli transcribe input.wav
+**新增后端的标准步骤**：
 
-# sherpa-sensevoice
-voice-input-cli transcribe input.wav \
-  --backend sherpa-sensevoice \
-  --sensevoice-model /path/to/model.int8.onnx \
-  --sensevoice-tokens /path/to/tokens.txt
-
-# sherpa-nano
-voice-input-cli transcribe input.wav \
-  --backend sherpa-nano \
-  --nano-model-dir /path/to/sherpa-onnx-funasr-nano-int8-2025-12-30
-```
-
-同样的参数也适用于 `batch` 和 `doctor` 子命令。
-
-### config.yaml 方式（GUI 常驻）
-
-```yaml
-recognizer_backend: sherpa-nano     # funasr / sherpa-sensevoice / sherpa-nano
-
-# sherpa-sensevoice 字段（只在该后端下生效）
-sensevoice_model_path: ""
-sensevoice_tokens_path: ""
-sensevoice_language: "zh"
-
-# sherpa-nano 字段（只在该后端下生效）
-nano_model_dir: ""
-```
-
-切完 config.yaml 直接 `voice-input` 启动即可。
-
-### 模型下载
-
-- **sherpa-sensevoice**: https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2
-- **sherpa-nano**: https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-funasr-nano-int8-2025-12-30.tar.bz2
-
-### 注意事项
-
-- `nano_model_dir` 是**目录路径**，目录内必须有 `encoder_adaptor.int8.onnx`、`llm.int8.onnx`、`embedding.int8.onnx`、`Qwen3-0.6B/`
-- sherpa 后端缺必填字段会立刻抛 `ConfigError`（见 `factory._create_recognizer`），不会等 sherpa-onnx 爆 FileNotFoundError
-- `streaming: true` 只对 funasr 生效；配合 sherpa 后端会发 `RuntimeWarning` 并自动禁用
-- 新增后端的步骤：`recognition/` 下加新模块（实现 `Recognizer` Protocol）→ `factory._create_recognizer` 加分支 → `config.py` 加字段 → `config.yaml` 加示例 → `CLAUDE.md` 本表更新
+1. `recognition/{backend_name}.py` — 实现 `Recognizer` Protocol（参考 `sherpa_sensevoice.py`）
+2. `config.py` — 在 `Config` dataclass 加该后端的必填字段（`{backend}_model_path` 等）
+3. `factory._create_recognizer` — 加 `if backend == "..."` 分支，**先**校验必填字段，缺失抛 `ConfigError`
+4. `config.yaml` — 加字段示例和注释
+5. `cli.py` — 在 `add_backend_args` 注册对应的 `--{backend}-*` 参数，并在 `_build_config` 里映射到 Config
+6. `README.md` — 后端表格 + CLI 命令 + config.yaml 示例 + 模型下载链接
+7. `tests/` — mock 测试覆盖 ConfigError 路径
 
 ## 快速上手
 
