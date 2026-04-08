@@ -162,7 +162,6 @@ class MainWindow(QWidget):
         self.convertButton.released.connect(self._convert_text)
 
         self._layout_buttons()
-        self.convertButton.released.connect(self._convert_text)
 
 
     def _layout_buttons(self):
@@ -183,15 +182,15 @@ class MainWindow(QWidget):
         self.convertButton.move(side_w + circle, self.height() - h)
 
     def _update_long_record_style(self):
+        r = self._circle_size // 2
+        base = f"margin: 0px; padding: 0px; border: none; border-radius: {r}px; "
         if self._long_recording_active:
             self.longRecordButton.setStyleSheet(
-                f"background-color: #e53935; border-radius: {self._circle_size // 2}px; "
-                "border: 2px solid rgba(255,255,255,0.6);"
+                base + "background-color: #e53935;"
             )
         else:
             self.longRecordButton.setStyleSheet(
-                f"background-color: rgba(90, 133, 15, 1); border-radius: {self._circle_size // 2}px; "
-                "border: 2px solid rgba(255,255,255,0.3);"
+                base + "background-color: rgba(90, 133, 15, 1);"
             )
 
     def _on_long_record_button(self):
