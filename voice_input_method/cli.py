@@ -1,16 +1,17 @@
 """Headless CLI entry point for voice-input-method.
 
-Designed for AI agents and CI/CD: take a WAV file in, get text out.
-No GUI, no microphone, no hotkeys.
+Designed for AI agents and CI/CD. No GUI, no desktop environment needed.
 
 Usage::
 
-    voice-input-cli transcribe input.wav
-    voice-input-cli transcribe input.wav --output result.txt
-    voice-input-cli transcribe input.wav --streaming
-    voice-input-cli transcribe input.wav --hotwords "遍历 数组 函数"
-    voice-input-cli transcribe input.wav --json
-    voice-input-cli batch ./audio_dir/ --output results.jsonl
+    voice-input-cli listen                          # record from mic, Enter to stop
+    voice-input-cli listen --duration 5             # record 5 seconds
+    voice-input-cli listen --device 1 --json        # specify mic, JSON output
+    voice-input-cli transcribe input.wav            # transcribe WAV file
+    voice-input-cli transcribe input.wav --json     # with metadata
+    voice-input-cli batch ./audio_dir/              # batch transcribe
+    voice-input-cli devices                         # list audio input devices
+    voice-input-cli doctor                          # self-test
 """
 
 from __future__ import annotations
@@ -21,9 +22,31 @@ import sys
 import time
 from pathlib import Path
 
-from .config import load_config, DEFAULT_OFFLINE_MODELS, DEFAULT_STREAMING_MODEL
-from .recognition import SpeechRecognizer, StreamingRecognizer
+from .config import Config, load_config, DEFAULT_OFFLINE_MODELS, DEFAULT_STREAMING_MODEL
+from .factory import _create_recognizer
+from .recognition.funasr_recognizer import FunASRRecognizer, FunASRStreamingRecognizer
 from .text_processing import clean_spaces
+
+
+def _build_config(args: argparse.Namespace) -> Config:
+    """Build a Config from argparse args, honoring --config file and CLI overrides."""
+    config_path = getattr(args, "config", None)
+    config = load_config(config_path) if config_path else Config()
+
+    # CLI flags override config file
+    if getattr(args, "backend", None):
+        config.recognizer_backend = args.backend
+    if getattr(args, "model", None):
+        config.model_dir = args.model
+    if getattr(args, "no_quantize", False):
+        config.quantize = False
+    if getattr(args, "sensevoice_model", None):
+        config.sensevoice_model_path = args.sensevoice_model
+    if getattr(args, "sensevoice_tokens", None):
+        config.sensevoice_tokens_path = args.sensevoice_tokens
+    if getattr(args, "nano_model_dir", None):
+        config.nano_model_dir = args.nano_model_dir
+    return config
 
 
 def cmd_transcribe(args: argparse.Namespace) -> int:
@@ -43,12 +66,11 @@ def cmd_transcribe(args: argparse.Namespace) -> int:
             quantize=not args.no_quantize,
         )
     else:
-        result_text = _transcribe_offline(
-            wav_path,
-            model_dir=args.model or DEFAULT_OFFLINE_MODELS["seaco_paraformer"],
-            quantize=not args.no_quantize,
-            hotwords=hotwords,
-        )
+        config = _build_config(args)
+        recognizer = _create_recognizer(config)
+        print(f"Loading {config.recognizer_backend} recognizer...", file=sys.stderr)
+        recognizer.load()
+        result_text = clean_spaces(recognizer.transcribe(str(wav_path), hotwords))
         partials = []
 
     elapsed_ms = int((time.time() - start) * 1000)
@@ -87,12 +109,9 @@ def cmd_batch(args: argparse.Namespace) -> int:
         print(f"Error: no .wav files in {input_dir}", file=sys.stderr)
         return 1
 
-    print(f"Loading model...", file=sys.stderr)
-    recognizer = SpeechRecognizer(
-        model_type="seaco_paraformer",
-        model_dir=args.model or DEFAULT_OFFLINE_MODELS["seaco_paraformer"],
-        quantize=not args.no_quantize,
-    )
+    config = _build_config(args)
+    recognizer = _create_recognizer(config)
+    print(f"Loading {config.recognizer_backend} recognizer...", file=sys.stderr)
     recognizer.load()
 
     output_path = Path(args.output) if args.output else None
@@ -130,6 +149,167 @@ def cmd_info(args: argparse.Namespace) -> int:
         "default_streaming_model": DEFAULT_STREAMING_MODEL,
     }
     print(json.dumps(info, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_listen(args: argparse.Namespace) -> int:
+    """Record from microphone, transcribe, and print text.
+
+    Works in any terminal — no GUI, no desktop environment needed.
+    Press Enter to stop recording (or use --duration for fixed-length).
+    """
+    import tempfile
+    import threading
+    import sounddevice as sd
+    import soundfile as sf_mod
+    import numpy as np
+
+    config = _build_config(args)
+    recognizer = _create_recognizer(config)
+    print("Loading model...", file=sys.stderr)
+    recognizer.load()
+
+    device = args.device
+    duration = args.duration
+    sample_rate = 16000
+    channels = 1
+
+    # Query device capabilities
+    if device is not None:
+        info = sd.query_devices(device)
+        sample_rate = int(info.get("default_samplerate", 16000))
+        channels = min(2, int(info.get("max_input_channels", 1)))
+
+    buffer: list[np.ndarray] = []
+    recording = True
+
+    def callback(indata, frames, time_info, status):
+        if recording:
+            buffer.append(indata.copy())
+
+    stream = sd.InputStream(
+        device=device,
+        samplerate=sample_rate,
+        channels=channels,
+        callback=callback,
+    )
+
+    print("Recording... (press Enter to stop)", file=sys.stderr, flush=True)
+    stream.start()
+    start = time.time()
+
+    if duration:
+        # Fixed duration mode
+        try:
+            time.sleep(duration)
+        except KeyboardInterrupt:
+            pass
+    else:
+        # Wait for Enter or Ctrl+C
+        stop_event = threading.Event()
+
+        def wait_enter():
+            try:
+                input()
+            except EOFError:
+                pass
+            stop_event.set()
+
+        t = threading.Thread(target=wait_enter, daemon=True)
+        t.start()
+        try:
+            stop_event.wait()
+        except KeyboardInterrupt:
+            pass
+
+    recording = False
+    stream.stop()
+    stream.close()
+    elapsed_rec = time.time() - start
+    print(f"Recorded {elapsed_rec:.1f}s", file=sys.stderr)
+
+    if not buffer:
+        print("Error: no audio captured", file=sys.stderr)
+        return 1
+
+    # Save to temp WAV
+    audio = np.concatenate(buffer, axis=0)
+    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    tmp.close()
+    sf_mod.write(tmp.name, audio, sample_rate)
+
+    # Denoise if requested
+    audio_path = tmp.name
+    if not args.no_denoise:
+        try:
+            import noisereduce as nr
+            data, sr = sf_mod.read(audio_path, dtype="float32")
+            if data.ndim == 2:
+                data = data.mean(axis=1)
+            reduced = nr.reduce_noise(y=data, sr=sr, prop_decrease=0.8)
+            denoised_path = audio_path.replace(".wav", "_denoised.wav")
+            sf_mod.write(denoised_path, reduced, sr)
+            audio_path = denoised_path
+        except Exception:
+            pass
+
+    # Transcribe
+    start = time.time()
+    text = clean_spaces(recognizer.transcribe(audio_path, args.hotwords or ""))
+    elapsed_ms = int((time.time() - start) * 1000)
+
+    # Apply corrections from hotwords file
+    if config.enable_hotwords:
+        from .hotwords import HotwordManager
+        from .text_processing import apply_corrections
+        from .config import resolve_resource_path
+        hw_path = resolve_resource_path(config, "hotwords_file")
+        hm = HotwordManager(hw_path)
+        if hm.corrections:
+            text = apply_corrections(text, hm.corrections)
+
+    if args.json:
+        output = {
+            "text": text,
+            "recorded_seconds": round(elapsed_rec, 1),
+            "elapsed_ms": elapsed_ms,
+        }
+        print(json.dumps(output, ensure_ascii=False, indent=2))
+    else:
+        print(text)
+
+    # Save audio if requested
+    if args.save:
+        save_path = Path(args.save)
+        import shutil
+        shutil.copy2(tmp.name, str(save_path))
+        print(f"Audio saved: {save_path}", file=sys.stderr)
+
+    # Cleanup
+    try:
+        Path(tmp.name).unlink()
+        Path(tmp.name.replace(".wav", "_denoised.wav")).unlink(missing_ok=True)
+    except OSError:
+        pass
+
+    return 0
+
+
+def cmd_devices(args: argparse.Namespace) -> int:
+    """List available audio input devices (JSON)."""
+    import sounddevice as sd
+    sd._terminate()
+    sd._initialize()
+    devices = []
+    for i, d in enumerate(sd.query_devices()):
+        if d.get("max_input_channels", 0) > 0:
+            devices.append({
+                "index": i,
+                "name": d["name"],
+                "channels": d["max_input_channels"],
+                "sample_rate": int(d.get("default_samplerate", 44100)),
+            })
+    print(json.dumps(devices, ensure_ascii=False, indent=2))
     return 0
 
 
@@ -172,8 +352,6 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             "voice_input_method.text_processing",
             "voice_input_method.cli",
             "funasr_onnx",
-            "jieba",
-            "cn2an",
             "soundfile",
             "numpy",
         ]
@@ -201,16 +379,14 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     recognizer_holder = {}
 
     def check_model_load():
-        from .recognition import SpeechRecognizer
-        rec = SpeechRecognizer(
-            model_type="seaco_paraformer",
-            model_dir=args.model or DEFAULT_OFFLINE_MODELS["seaco_paraformer"],
-            quantize=not args.no_quantize,
-        )
+        config = _build_config(args)
+        rec = _create_recognizer(config)
         rec.load()
         recognizer_holder["rec"] = rec
-        model_id = args.model or DEFAULT_OFFLINE_MODELS["seaco_paraformer"]
-        return f"loaded {model_id}"
+        model_id = args.model or DEFAULT_OFFLINE_MODELS.get(
+            config.model_type, config.recognizer_backend
+        )
+        return f"loaded {config.recognizer_backend} ({model_id})"
 
     # 4. Run inference (silence is enough — we just need it not to crash)
     def check_inference():
@@ -275,8 +451,7 @@ def _transcribe_offline(
     wav_path: Path, model_dir: str, quantize: bool, hotwords: str
 ) -> str:
     print(f"Loading offline model: {model_dir}", file=sys.stderr)
-    recognizer = SpeechRecognizer(
-        model_type="seaco_paraformer",
+    recognizer = FunASRRecognizer(
         model_dir=model_dir,
         quantize=quantize,
     )
@@ -292,7 +467,7 @@ def _transcribe_streaming(
     import soundfile as sf
 
     print(f"Loading streaming model: {model_dir}", file=sys.stderr)
-    recognizer = StreamingRecognizer(
+    recognizer = FunASRStreamingRecognizer(
         model_dir=model_dir,
         quantize=quantize,
         chunk_size=[5, 10, 5],
@@ -339,6 +514,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
+    def add_backend_args(p: argparse.ArgumentParser) -> None:
+        p.add_argument("--config", help="Path to config.yaml (optional)")
+        p.add_argument(
+            "--backend",
+            choices=["funasr", "sherpa-sensevoice", "sherpa-nano"],
+            help="Recognizer backend (overrides config)",
+        )
+        p.add_argument(
+            "--sensevoice-model",
+            help="Path to SenseVoice model.int8.onnx (sherpa-sensevoice backend)",
+        )
+        p.add_argument(
+            "--sensevoice-tokens",
+            help="Path to SenseVoice tokens.txt (sherpa-sensevoice backend)",
+        )
+        p.add_argument(
+            "--nano-model-dir",
+            help="Directory of Fun-ASR-Nano ONNX files (sherpa-nano backend)",
+        )
+
     # transcribe
     p_t = sub.add_parser("transcribe", help="Transcribe a single WAV file")
     p_t.add_argument("input", help="Path to input .wav file")
@@ -361,6 +556,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_t.add_argument(
         "--json", action="store_true", help="Output JSON with metadata instead of text"
     )
+    add_backend_args(p_t)
     p_t.set_defaults(func=cmd_transcribe)
 
     # batch
@@ -370,11 +566,38 @@ def build_parser() -> argparse.ArgumentParser:
     p_b.add_argument("-m", "--model", help="Model dir or ModelScope ID")
     p_b.add_argument("--hotwords", help="Space-separated hotwords")
     p_b.add_argument("--no-quantize", action="store_true")
+    add_backend_args(p_b)
     p_b.set_defaults(func=cmd_batch)
+
+    # listen
+    p_l = sub.add_parser(
+        "listen",
+        help="Record from microphone and transcribe (no GUI needed)",
+    )
+    p_l.add_argument(
+        "-d", "--duration", type=float, default=None,
+        help="Record for N seconds (default: press Enter to stop)",
+    )
+    p_l.add_argument(
+        "--device", type=int, default=None,
+        help="Audio input device index (see: voice-input-cli devices)",
+    )
+    p_l.add_argument("-m", "--model", help="Model dir or ModelScope ID")
+    p_l.add_argument("--hotwords", help="Space-separated hotwords")
+    p_l.add_argument("--no-quantize", action="store_true")
+    p_l.add_argument("--no-denoise", action="store_true", help="Skip noise reduction")
+    p_l.add_argument("--json", action="store_true", help="Output JSON with metadata")
+    p_l.add_argument("--save", help="Save recorded audio to this path")
+    add_backend_args(p_l)
+    p_l.set_defaults(func=cmd_listen)
 
     # info
     p_i = sub.add_parser("info", help="Show version and default model IDs")
     p_i.set_defaults(func=cmd_info)
+
+    # devices
+    p_dev = sub.add_parser("devices", help="List available audio input devices (JSON)")
+    p_dev.set_defaults(func=cmd_devices)
 
     # doctor
     p_d = sub.add_parser(
@@ -383,6 +606,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_d.add_argument("-m", "--model", help="Model ID to test (default: built-in)")
     p_d.add_argument("--no-quantize", action="store_true")
+    add_backend_args(p_d)
     p_d.set_defaults(func=cmd_doctor)
 
     return parser

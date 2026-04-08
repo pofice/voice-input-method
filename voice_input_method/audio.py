@@ -49,7 +49,9 @@ class AudioRecorder:
         self._target_channels = channels
         self.sample_rate: int = sample_rate
         self.channels: int = channels
-        self.buffer: list = []
+        # Accumulate numpy chunks (cheap: just a list append of ndarray refs)
+        # instead of converting to Python list on every audio callback.
+        self.buffer: list[np.ndarray] = []
         self.is_recording: bool = False
         self.stream: Any = None  # sd.InputStream once started
 
@@ -124,7 +126,8 @@ class AudioRecorder:
         if not self.is_recording:
             return
 
-        self.buffer.extend(indata.tolist())
+        # Copy because sounddevice reuses the buffer between callbacks.
+        self.buffer.append(indata.copy())
 
         # Streaming: resample incoming audio and feed chunks
         if self._on_chunk and self._chunk_samples_16k > 0:
@@ -141,11 +144,17 @@ class AudioRecorder:
         self._streaming_buffer = np.array([], dtype=np.float32)
         self.is_recording = True
 
+    def _concat_buffer(self) -> np.ndarray:
+        """Concatenate accumulated chunk arrays into one array."""
+        if not self.buffer:
+            return np.empty((0,), dtype=np.float32)
+        return np.concatenate(self.buffer, axis=0)
+
     def stop_recording(self, output_path: str) -> str:
         """Stop recording and save to WAV file. Returns the output path."""
         self.is_recording = False
         if self.buffer:
-            data = np.array(self.buffer)
+            data = self._concat_buffer()
             sf.write(output_path, data, self.sample_rate)
         return output_path
 
@@ -153,7 +162,7 @@ class AudioRecorder:
         """Get the full recording resampled to 16kHz mono."""
         if not self.buffer:
             return np.array([], dtype=np.float32)
-        data = np.array(self.buffer)
+        data = self._concat_buffer()
         return resample_to_16k_mono(data, self.sample_rate, self.channels)
 
     def flush_streaming_buffer(self):
@@ -161,6 +170,90 @@ class AudioRecorder:
         if self._on_chunk and len(self._streaming_buffer) > 0:
             self._on_chunk(self._streaming_buffer)
             self._streaming_buffer = np.array([], dtype=np.float32)
+
+    def switch_device(self, device_index: int | None = None) -> None:
+        """Switch to a different input device at runtime.
+
+        Args:
+            device_index: sounddevice device index, or None for system default.
+        """
+        sd = self._sd
+        # Stop current stream
+        if self.stream:
+            try:
+                self.stream.stop()
+                self.stream.close()
+            except Exception:
+                pass
+            self.stream = None
+
+        # Query new device
+        try:
+            if device_index is not None:
+                info = sd.query_devices(device_index)
+                max_ch = int(info.get("max_input_channels", 1))
+                self.sample_rate = int(info.get("default_samplerate", self._target_sample_rate))
+                self.channels = min(self._target_channels, max_ch)
+            else:
+                self.sample_rate, self.channels = self._detect_device()
+                device_index = None
+        except Exception as e:
+            print(f"Warning: failed to query device {device_index}: {e}")
+            self.sample_rate, self.channels = self._detect_device()
+            device_index = None
+
+        # Open new stream
+        try:
+            self.stream = sd.InputStream(
+                device=device_index,
+                samplerate=self.sample_rate,
+                channels=self.channels,
+                callback=self._audio_callback,
+            )
+            self.stream.start()
+        except Exception as e:
+            print(f"Failed to open device {device_index}: {e}, falling back")
+            self.stream = self._open_stream()
+            if self.stream:
+                self.stream.start()
+
+    def refresh_and_list_devices(self) -> list[dict]:
+        """Re-scan hardware and return available input devices.
+
+        Restores the current audio stream after PortAudio re-init.
+        """
+        sd = self._sd
+        # Stop current stream before re-init
+        had_stream = self.stream is not None
+        if self.stream:
+            try:
+                self.stream.stop()
+                self.stream.close()
+            except Exception:
+                pass
+            self.stream = None
+
+        # Re-scan
+        sd._terminate()
+        sd._initialize()
+
+        devices = []
+        for i, d in enumerate(sd.query_devices()):
+            if d.get("max_input_channels", 0) > 0:
+                devices.append({
+                    "index": i,
+                    "name": d["name"],
+                    "channels": d["max_input_channels"],
+                    "sample_rate": int(d.get("default_samplerate", 44100)),
+                })
+
+        # Restore stream
+        if had_stream:
+            self.stream = self._open_stream()
+            if self.stream:
+                self.stream.start()
+
+        return devices
 
     def stop(self):
         """Stop the audio stream."""

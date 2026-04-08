@@ -27,7 +27,7 @@ from .protocols import (
     StreamingRecognizerProto,
     TextPaster,
 )
-from .text_processing import clean_spaces, convert_chinese_numbers
+from .text_processing import apply_corrections, clean_spaces, strip_trailing_punctuation
 
 
 @dataclass
@@ -36,9 +36,9 @@ class EngineConfig:
 
     streaming: bool = False
     two_pass: bool = False
-    enable_number_conversion: bool = False
     enable_traditional_chinese: bool = False
     enable_noise_reduction: bool = True
+    strip_trailing_punctuation: bool = True
     chunk_size: list[int] = field(default_factory=lambda: [5, 10, 5])
 
 
@@ -65,6 +65,7 @@ class VoiceEngine:
         chinese_converter=None,
         on_partial: Callable[[str], None] | None = None,
         on_result: Callable[[str], None] | None = None,
+        on_error: Callable[[Exception], None] | None = None,
     ):
         self.config = config
         self.recorder = recorder
@@ -77,6 +78,7 @@ class VoiceEngine:
         # Callbacks — UI layer hooks into these
         self.on_partial = on_partial
         self.on_result = on_result
+        self.on_error = on_error
 
         self._audio_path = os.path.join(tempfile.gettempdir(), "voice_input_audio.wav")
         self._streaming_text = ""
@@ -184,14 +186,28 @@ class VoiceEngine:
         return ""
 
     def _transcribe_offline(self) -> None:
-        """Run offline transcription (non-streaming or 2pass final pass)."""
-        audio_path = self._audio_path
-        if self.config.enable_noise_reduction:
-            audio_path = self._denoise(audio_path)
-        text = self.recognizer.transcribe(audio_path, self._hotwords())
-        if text:
-            text = clean_spaces(text)
-            self._deliver(text)
+        """Run offline transcription (non-streaming or 2pass final pass).
+
+        Runs in a background thread. Exceptions are routed to the
+        on_error callback (if set) so the UI layer can surface them,
+        instead of being silently lost on the thread.
+        """
+        try:
+            audio_path = self._audio_path
+            if self.config.enable_noise_reduction:
+                audio_path = self._denoise(audio_path)
+            text = self.recognizer.transcribe(audio_path, self._hotwords())
+            if text:
+                text = clean_spaces(text)
+                self._deliver(text)
+        except Exception as exc:
+            import traceback
+            traceback.print_exc()
+            if self.on_error:
+                try:
+                    self.on_error(exc)
+                except Exception:
+                    traceback.print_exc()
 
     def _denoise(self, audio_path: str) -> str:
         """Apply noise reduction to the recorded audio."""
@@ -209,8 +225,10 @@ class VoiceEngine:
 
     def _deliver(self, text: str) -> None:
         """Post-process and deliver the final result."""
-        if self.config.enable_number_conversion:
-            text = convert_chinese_numbers(text)
+        if self.hotword_provider and self.hotword_provider.corrections:
+            text = apply_corrections(text, self.hotword_provider.corrections)
+        if self.config.strip_trailing_punctuation:
+            text = strip_trailing_punctuation(text)
         if self.on_result:
             self.on_result(text)
         self.paster.paste_text(text)

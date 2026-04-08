@@ -4,28 +4,25 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "voice-input-method"
-version = "2.2.0"
+version = "3.1.0"
 description = "FunASR-based low-latency voice input method"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
 dependencies = [
-    "PySide6>=6.5",
-    "pynput>=1.7",
     "funasr-onnx>=0.3",
     "opencc-python-reimplemented>=0.1.7",
     "sounddevice>=0.4",
     "soundfile>=0.12",
     "numpy>=1.24",
     "PyYAML>=6.0",
-    "cn2an>=0.5",
-    "jieba>=0.42",
     "noisereduce>=3.0",
 ]
 
 [project.optional-dependencies]
-number = []  # cn2an now in core deps
+gui = ["PySide6>=6.5", "pynput>=1.7"]
 macos = ["pyobjc-framework-ApplicationServices", "pyobjc-framework-Cocoa"]
+sherpa = ["sherpa-onnx>=1.12"]
 dev = ["pytest", "pytest-cov", "ruff"]
 integration = ["pytest", "edge-tts", "librosa", "jieba", "modelscope", "torch"]
 
@@ -36,6 +33,7 @@ voice-input-cli = "voice_input_method.cli:main"
 [tool.pytest.ini_options]
 markers = [
     "integration: real ASR model tests (require model download, ~250MB)",
+    "sherpa: sherpa-onnx backend tests (require sherpa-onnx + models)",
 ]
 
 [tool.setuptools.packages.find]

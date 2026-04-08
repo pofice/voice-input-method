@@ -171,18 +171,18 @@ class CombinedHotkeyListener:
         toggle_release_only = self._toggle_name in _RELEASE_ONLY_KEYS if self._toggle_name else False
 
         def on_press(key):
-            # Hold hotkey press
+            # Hold hotkey press (ignored while toggle-recording)
             if not hold_release_only:
                 try:
-                    if key == hold_key and not self._hold_pressed:
+                    if key == hold_key and not self._hold_pressed and not self._toggle_recording:
                         self._hold_pressed = True
                         self._hold_on_press()
                 except AttributeError:
                     pass
-            # Toggle hotkey press
+            # Toggle hotkey press (ignored while hold-recording)
             if toggle_key and not toggle_release_only:
                 try:
-                    if key == toggle_key:
+                    if key == toggle_key and not self._hold_pressed:
                         self._do_toggle()
                 except AttributeError:
                     pass
@@ -190,7 +190,7 @@ class CombinedHotkeyListener:
         def on_release(key):
             # Hold hotkey release (or toggle-fallback for release-only keys)
             if hold_release_only:
-                if key == hold_key:
+                if key == hold_key and not self._toggle_recording:
                     if not self._hold_pressed:
                         self._hold_pressed = True
                         self._hold_on_press()
@@ -202,9 +202,9 @@ class CombinedHotkeyListener:
                     self._hold_pressed = False
                     self._hold_on_release()
 
-            # Toggle hotkey release (for release-only keys)
+            # Toggle hotkey release (for release-only keys, ignored while hold-recording)
             if toggle_key and toggle_release_only:
-                if key == toggle_key:
+                if key == toggle_key and not self._hold_pressed:
                     self._do_toggle()
 
         self._listener = keyboard.Listener(on_press=on_press, on_release=on_release)

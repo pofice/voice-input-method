@@ -89,6 +89,11 @@ class HotwordProvider(Protocol):
     def hotwords_str(self) -> str:
         ...
 
+    @property
+    def corrections(self) -> dict[str, str]:
+        """Post-ASR correction rules: wrong text → correct text."""
+        ...
+
     def reload(self) -> None:
         ...
 

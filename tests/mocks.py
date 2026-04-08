@@ -101,12 +101,18 @@ class MockPaster:
 class MockHotwordProvider:
     """Fake hotword provider."""
 
-    def __init__(self, hotwords: str = "测试 热词"):
+    def __init__(self, hotwords: str = "测试 热词",
+                 corrections: dict[str, str] | None = None):
         self._hotwords_str = hotwords
+        self._corrections = corrections or {}
 
     @property
     def hotwords_str(self) -> str:
         return self._hotwords_str
+
+    @property
+    def corrections(self) -> dict[str, str]:
+        return self._corrections
 
     def reload(self) -> None:
         pass
@@ -121,9 +127,10 @@ class MockIndicator:
         self.hide_count = 0
         self.shutdown_called = False
 
-    def show(self) -> None:
+    def show(self, style: str = "dot") -> None:
         self.visible = True
         self.show_count += 1
+        self.last_style = style
 
     def hide(self) -> None:
         self.visible = False

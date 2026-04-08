@@ -41,9 +41,9 @@ macOS 用户需要在**系统设置 → 隐私与安全性 → 辅助功能**中
 | 整体架构如何串起来 | `voice_input_method/factory.py` — 一个文件看完所有依赖装配 |
 | 核心业务流水线（录音→识别→后处理→粘贴） | `voice_input_method/engine.py` 的 `VoiceEngine` 类 |
 | 各组件的接口契约 | `voice_input_method/protocols.py` — Protocol 定义 |
-| ASR 模型怎么调用 | `voice_input_method/recognition.py` |
+| ASR 识别后端（3 种可选） | `voice_input_method/recognition/` — funasr / sherpa-sensevoice / sherpa-nano |
 | 录音怎么做 | `voice_input_method/audio.py` |
-| 文本后处理（数字转换、繁简、热词、字母合并） | `voice_input_method/text_processing.py`、`voice_input_method/hotwords.py` |
+| 文本后处理（繁简、热词、字母合并） | `voice_input_method/text_processing.py`、`voice_input_method/hotwords.py` |
 | 命令行入口 / 各命令选项 | `voice_input_method/cli.py`，或运行 `voice-input-cli --help` |
 | GUI 怎么和 engine 交互 | `voice_input_method/app.py` — 这是一个薄壳，业务逻辑全在 `engine` 里 |
 | 录音指示器（浮动红点） | `voice_input_method/indicator.py` — macOS 用 AppKit 子进程实现 |
@@ -72,9 +72,10 @@ macOS 用户需要在**系统设置 → 隐私与安全性 → 辅助功能**中
 需要 Python 3.10+。
 
 ```shell
-pip install .                    # 基础安装（含 cn2an/jieba/funasr-onnx 等核心依赖）
+pip install .                    # 基础安装（funasr-onnx SeacoParaformer 默认后端）
 pip install -e ".[dev]"          # 开发环境（pytest + ruff）
-pip install ".[macos]"           # macOS 权限检测（需 PyObjC）
+pip install ".[sherpa]"          # SenseVoice / Fun-ASR-Nano 后端（需 sherpa-onnx）
+pip install ".[macos]"           # macOS 录音指示器（需 PyObjC）
 pip install ".[integration]"     # 集成测试需要的额外依赖
 ```
 
@@ -122,15 +123,77 @@ voice-input-cli transcribe input.wav --json     # 结构化输出（含耗时）
 
 CLI 完全 headless：吃 WAV 文件吐文字，不需要 GUI/麦克风/键盘。结构化 JSON 输出适合 AI agent 拿来判断改动有没有效果。
 
+## 识别后端
+
+| 后端 | 模型 | 大小 | 热词 | 标点/ITN | 流式 | 安装 |
+|------|------|------|------|---------|------|------|
+| `funasr`（默认） | SeacoParaformer | 370MB | ✅ 每次调用 | ❌ | ✅ | 核心依赖 |
+| `sherpa-sensevoice` | SenseVoice-Small | 229MB(int8) | ❌（仅同音字替换 HR） | ✅ 内置 | ❌ | `pip install ".[sherpa]"` |
+| `sherpa-nano` | Fun-ASR-Nano (LLM) | ~800MB(int8) | ✅ 加载时烤入 | ✅ 内置 | ❌ | `pip install ".[sherpa]"` |
+
+> **热词差异**：`funasr` 每次 transcribe 都接受新热词；`sherpa-nano` 把热词烤进构造函数，修改 `hotwords.txt` 后必须重启程序才生效。`sherpa-nano` 还支持自定义 LLM 提示词（`nano_system_prompt` / `nano_user_prompt`），可以塞业务上下文比硬编热词更灵活。
+
+### 模型下载
+
+`funasr` 后端首次启动自动下载，无需手动操作。`sherpa-*` 后端需要手动下载：
+
+```shell
+# sherpa-sensevoice
+curl -SL -O https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2
+tar xjf sherpa-onnx-sense-voice-*.tar.bz2
+
+# sherpa-nano
+curl -SL -O https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-funasr-nano-int8-2025-12-30.tar.bz2
+tar xjf sherpa-onnx-funasr-nano-*.tar.bz2
+```
+
+### CLI 切换（一次性）
+
+```shell
+# funasr（默认，可省略 --backend）
+voice-input-cli transcribe input.wav
+
+# sherpa-sensevoice
+voice-input-cli transcribe input.wav \
+  --backend sherpa-sensevoice \
+  --sensevoice-model ./sherpa-onnx-sense-voice-.../model.int8.onnx \
+  --sensevoice-tokens ./sherpa-onnx-sense-voice-.../tokens.txt
+
+# sherpa-nano（--nano-model-dir 是目录，目录内必须有 encoder_adaptor / llm / embedding / Qwen3-0.6B）
+voice-input-cli transcribe input.wav \
+  --backend sherpa-nano \
+  --nano-model-dir ./sherpa-onnx-funasr-nano-int8-2025-12-30
+```
+
+同样的参数适用于 `batch` 和 `doctor` 子命令。
+
+### config.yaml 切换（GUI 常驻）
+
+```yaml
+recognizer_backend: sherpa-nano   # funasr / sherpa-sensevoice / sherpa-nano
+
+# sherpa-sensevoice 字段（仅在该后端下生效）
+sensevoice_model_path: "/abs/path/model.int8.onnx"
+sensevoice_tokens_path: "/abs/path/tokens.txt"
+sensevoice_language: "zh"
+
+# sherpa-nano 字段（仅在该后端下生效）
+nano_model_dir: "/abs/path/sherpa-onnx-funasr-nano-int8-2025-12-30"
+nano_system_prompt: "You are a helpful assistant."   # 可塞业务上下文，如 "You transcribe coding/AI tool names"
+nano_user_prompt: "语音转写:"
+```
+
+切换 sherpa 后端时，缺必填字段会立刻抛出 `ConfigError`，错误消息会指出缺哪个字段。`streaming: true` 只对 `funasr` 生效，配合 sherpa 后端会发 `RuntimeWarning` 并自动禁用。
+
 ## 功能
 
 | 功能 | 默认 | 配置项 |
 |------|------|--------|
-| 中文数字→阿拉伯数字 | 开 | `enable_number_conversion` |
 | 降噪（识别前） | 开 | `enable_noise_reduction` |
 | 热词增强 | 开 | `enable_hotwords` + `hotwords.txt` |
 | 繁简转换 | 开 | `enable_traditional_chinese` |
 | 单字母合并（A I → AI） | 始终开启 | — |
+| 末尾标点剥离（。！？等） | 开 | `strip_trailing_punctuation` |
 
 ## 测试
 

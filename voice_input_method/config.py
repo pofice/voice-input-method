@@ -19,13 +19,27 @@ DEFAULT_STREAMING_MODEL = (
 @dataclass
 class Config:
     # Model
-    model_type: str = "seaco_paraformer"  # "paraformer" or "seaco_paraformer"
+    model_type: str = "seaco_paraformer"  # currently only "seaco_paraformer"
     model_dir: str = ""
     quantize: bool = True
 
     # Audio
     sample_rate: int = 44100
     channels: int = 2
+
+    # Recognizer backend: "funasr" (SeacoParaformer), "sherpa-sensevoice", "sherpa-nano"
+    recognizer_backend: str = "funasr"
+
+    # sherpa-sensevoice backend paths (required when recognizer_backend="sherpa-sensevoice")
+    sensevoice_model_path: str = ""   # path to model.int8.onnx
+    sensevoice_tokens_path: str = ""  # path to tokens.txt
+    sensevoice_language: str = "zh"
+
+    # sherpa-nano backend paths (required when recognizer_backend="sherpa-nano")
+    nano_model_dir: str = ""          # dir containing encoder_adaptor/llm/embedding/tokenizer
+    # sherpa-nano LLM prompts (optional; defaults match sherpa-onnx)
+    nano_system_prompt: str = "You are a helpful assistant."
+    nano_user_prompt: str = "语音转写:"
 
     # Hotkey
     hotkey: str = "scroll_lock"
@@ -45,9 +59,9 @@ class Config:
 
     # Features
     enable_hotwords: bool = True
-    enable_number_conversion: bool = True
     enable_traditional_chinese: bool = True
     enable_noise_reduction: bool = True
+    strip_trailing_punctuation: bool = True  # remove "。", "！", "?", etc. at end
 
     # Platform override (auto-detected if empty)
     platform: str = ""

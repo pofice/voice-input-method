@@ -15,7 +15,7 @@ GUI (app.py)  /  CLI (cli.py)
         ↓
     protocols.py
         ↓
-audio / recognition / indicator / hotwords / platform / text_processing
+audio / recognition/ (funasr, sherpa-sensevoice, sherpa-nano) / indicator / hotwords / platform / text_processing
 ```
 
 - 依赖只能向下，不能向上
@@ -67,6 +67,27 @@ perf(engine): 启动时预加载 jieba 词典
 - scope 可选，用英文模块名
 - 描述用中文，简明扼要
 - 每个功能点一个 commit，不要混多个不相关改动
+
+## 识别后端约定
+
+> 用户操作（CLI 命令、config.yaml 字段、模型下载）见 README《识别后端》章节。本节只写 AI 改代码时的契约。
+
+**契约**：
+
+- 所有后端都必须实现 `protocols.Recognizer`（load / warmup / transcribe）
+- `factory._create_recognizer` 是唯一的实例化入口，禁止在 `cli.py` / `app.py` / 测试外硬编码具体后端类
+- 缺必填配置时必须抛 `factory.ConfigError` 并指出具体字段，**不允许**让 sherpa-onnx / funasr-onnx 自己爆 FileNotFoundError
+- `streaming: true` 仅对 `funasr` 后端有效；其他后端组合时 factory 必须发 `RuntimeWarning` 并禁用 streaming，不允许静默失败
+
+**新增后端的标准步骤**：
+
+1. `recognition/{backend_name}.py` — 实现 `Recognizer` Protocol（参考 `sherpa_sensevoice.py`）
+2. `config.py` — 在 `Config` dataclass 加该后端的必填字段（`{backend}_model_path` 等）
+3. `factory._create_recognizer` — 加 `if backend == "..."` 分支，**先**校验必填字段，缺失抛 `ConfigError`
+4. `config.yaml` — 加字段示例和注释
+5. `cli.py` — 在 `add_backend_args` 注册对应的 `--{backend}-*` 参数，并在 `_build_config` 里映射到 Config
+6. `README.md` — 后端表格 + CLI 命令 + config.yaml 示例 + 模型下载链接
+7. `tests/` — mock 测试覆盖 ConfigError 路径
 
 ## 快速上手
 

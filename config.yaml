@@ -1,8 +1,14 @@
 # Voice Input Method Configuration
 # Copy this file and edit to match your setup.
 
+# Recognizer backend: "funasr" (SeacoParaformer), "sherpa-sensevoice", "sherpa-nano"
+# funasr: default, fast ONNX inference, supports hotwords and streaming
+# sherpa-sensevoice: built-in punctuation + ITN, small model (229MB int8)
+# sherpa-nano: LLM-based, best accuracy for dialects/accents, requires sherpa-onnx
+recognizer_backend: sherpa-nano
+
 # ASR Model
-# model_type: "seaco_paraformer" (supports hotwords) or "paraformer" (basic)
+# model_type: "seaco_paraformer" (supports hotwords)
 model_type: seaco_paraformer
 
 # Path to the FunASR model directory.
@@ -12,6 +18,20 @@ model_dir: ""
 
 # Use INT8 quantization for faster inference (recommended)
 quantize: true
+
+# --- sherpa-sensevoice backend paths (only used when recognizer_backend="sherpa-sensevoice") ---
+# Download: https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2
+sensevoice_model_path: ""   # e.g. /path/to/sherpa-onnx-sense-voice-.../model.int8.onnx
+sensevoice_tokens_path: ""  # e.g. /path/to/sherpa-onnx-sense-voice-.../tokens.txt
+sensevoice_language: "zh"   # zh / en / ja / ko / yue
+
+# --- sherpa-nano backend path (only used when recognizer_backend="sherpa-nano") ---
+# Directory must contain encoder_adaptor.int8.onnx, llm.int8.onnx, embedding.int8.onnx, Qwen3-0.6B/
+nano_model_dir: "models/sherpa-onnx-funasr-nano-int8-2025-12-30"
+# LLM prompts for sherpa-nano (optional). You can stuff business context here
+# as a stronger alternative to hotwords, since the model is LLM-based.
+nano_system_prompt: "You are a voice transcription assistant. The speaker often talks about coding tools like Claude Code, ChatGPT, Cursor, GitHub Copilot, and Python libraries. Transcribe these names accurately."
+nano_user_prompt: "语音转写:"
 
 # Audio recording
 sample_rate: 44100
@@ -32,7 +52,7 @@ window_width: 200
 window_height: 100
 window_opacity: 0.8
 
-# Streaming recognition (real-time text while you speak)
+# Streaming recognition (real-time text while you speak, funasr backend only)
 streaming: false
 
 # Path to streaming model directory.
@@ -49,9 +69,9 @@ two_pass: false
 
 # Features
 enable_hotwords: true           # Load custom hotwords from hotwords.txt
-enable_number_conversion: true   # Show checkbox for Chinese→Arabic number conversion
 enable_traditional_chinese: true # Enable simplified↔traditional Chinese toggle
 enable_noise_reduction: true    # Apply noise reduction before recognition
+strip_trailing_punctuation: true # Remove trailing 。！？，. etc. from recognized text
 
 # Platform override (auto-detected if empty)
 # Options: x11, wayland, windows, macos

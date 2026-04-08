@@ -13,9 +13,12 @@ from .app import MainWindow
 def main():
     parser = argparse.ArgumentParser(description="Voice Input Method")
     parser.add_argument("--config", "-c", help="Path to config.yaml", default="config.yaml")
+    parser.add_argument("--device", "-d", type=int, default=None,
+                        help="Audio input device index (see: voice-input-cli devices)")
     args = parser.parse_args()
 
     config = load_config(args.config)
+    config._device_index = args.device
 
     app = QApplication(sys.argv)
 
