@@ -149,7 +149,7 @@ class MainWindow(QWidget):
         self.button.released.connect(self._on_stop_recording)
 
         # Long recording button (center, circular)
-        self.longRecordButton = QPushButton(self)
+        self.longRecordButton = QPushButton("\u25CF", self)
         self.longRecordButton.setCursor(Qt.CursorShape.PointingHandCursor)
         self.longRecordButton.setFixedSize(self._circle_size, self._circle_size)
         self._long_recording_active = False
@@ -183,14 +183,18 @@ class MainWindow(QWidget):
 
     def _update_long_record_style(self):
         r = self._circle_size // 2
-        base = f"margin: 0px; padding: 0px; border: none; border-radius: {r}px; "
+        common = f"margin: 0px; padding: 0px; border: none; border-radius: {r}px; color: white; font-size: 10px;"
         if self._long_recording_active:
             self.longRecordButton.setStyleSheet(
-                base + "background-color: #e53935;"
+                f"QPushButton {{ {common} background-color: #e53935; }}"
+                f"QPushButton:hover {{ background-color: #ef5350; }}"
+                f"QPushButton:pressed {{ background-color: #c62828; }}"
             )
         else:
             self.longRecordButton.setStyleSheet(
-                base + "background-color: rgba(90, 133, 15, 1);"
+                f"QPushButton {{ {common} background-color: rgba(90, 133, 15, 1); }}"
+                f"QPushButton:hover {{ background-color: rgba(100, 145, 40, 1); }}"
+                f"QPushButton:pressed {{ background-color: rgba(80, 120, 10, 1); }}"
             )
 
     def _on_long_record_button(self):
