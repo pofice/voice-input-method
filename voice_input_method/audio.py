@@ -171,6 +171,72 @@ class AudioRecorder:
             self._on_chunk(self._streaming_buffer)
             self._streaming_buffer = np.array([], dtype=np.float32)
 
+    def switch_device(self, device_index: int | None = None) -> None:
+        """Switch to a different input device at runtime.
+
+        Args:
+            device_index: sounddevice device index, or None for system default.
+        """
+        sd = self._sd
+        # Stop current stream
+        if self.stream:
+            try:
+                self.stream.stop()
+                self.stream.close()
+            except Exception:
+                pass
+            self.stream = None
+
+        # Query new device
+        try:
+            if device_index is not None:
+                info = sd.query_devices(device_index)
+                max_ch = int(info.get("max_input_channels", 1))
+                self.sample_rate = int(info.get("default_samplerate", self._target_sample_rate))
+                self.channels = min(self._target_channels, max_ch)
+            else:
+                self.sample_rate, self.channels = self._detect_device()
+                device_index = None
+        except Exception as e:
+            print(f"Warning: failed to query device {device_index}: {e}")
+            self.sample_rate, self.channels = self._detect_device()
+            device_index = None
+
+        # Open new stream
+        try:
+            self.stream = sd.InputStream(
+                device=device_index,
+                samplerate=self.sample_rate,
+                channels=self.channels,
+                callback=self._audio_callback,
+            )
+            self.stream.start()
+        except Exception as e:
+            print(f"Failed to open device {device_index}: {e}, falling back")
+            self.stream = self._open_stream()
+            if self.stream:
+                self.stream.start()
+
+    @staticmethod
+    def list_input_devices(refresh: bool = True) -> list[dict]:
+        """Return a list of available input devices (re-scans hardware)."""
+        import sounddevice as sd
+        if refresh:
+            # Force PortAudio to re-scan devices (it caches the list).
+            # Existing streams survive re-init on macOS/Windows.
+            sd._terminate()
+            sd._initialize()
+        devices = []
+        for i, d in enumerate(sd.query_devices()):
+            if d.get("max_input_channels", 0) > 0:
+                devices.append({
+                    "index": i,
+                    "name": d["name"],
+                    "channels": d["max_input_channels"],
+                    "sample_rate": int(d.get("default_samplerate", 44100)),
+                })
+        return devices
+
     def stop(self):
         """Stop the audio stream."""
         if self.stream:

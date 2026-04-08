@@ -11,10 +11,11 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtWidgets import QApplication, QWidget, QPushButton, QTextEdit
+from PySide6.QtWidgets import QApplication, QWidget, QPushButton, QTextEdit, QMenu
 from PySide6.QtGui import QMouseEvent, QIcon
 from PySide6.QtCore import Qt, QEvent, Signal, QPointF
 
+from .audio import AudioRecorder
 from .config import Config, resolve_resource_path
 from .factory import create_engine, create_indicator
 from .hotkey import CombinedHotkeyListener
@@ -266,6 +267,23 @@ class MainWindow(QWidget):
     def _convert_text(self):
         text = self.textEdit.toPlainText()
         self.engine.convert_chinese_async(text)
+
+    # --- Context menu (right-click) ---
+
+    def contextMenuEvent(self, event):
+        menu = QMenu(self)
+        # Audio device submenu
+        device_menu = menu.addMenu("切换麦克风")
+        devices = AudioRecorder.list_input_devices()
+        for dev in devices:
+            action = device_menu.addAction(dev["name"])
+            action.setData(dev["index"])
+            action.triggered.connect(lambda checked, idx=dev["index"], name=dev["name"]: self._switch_device(idx, name))
+        menu.exec(event.globalPos())
+
+    def _switch_device(self, device_index: int, name: str):
+        self.engine.recorder.switch_device(device_index)
+        print(f"Switched to: {name}")
 
     # --- Window drag ---
 
