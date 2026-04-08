@@ -1,16 +1,17 @@
 """Headless CLI entry point for voice-input-method.
 
-Designed for AI agents and CI/CD: take a WAV file in, get text out.
-No GUI, no microphone, no hotkeys.
+Designed for AI agents and CI/CD. No GUI, no desktop environment needed.
 
 Usage::
 
-    voice-input-cli transcribe input.wav
-    voice-input-cli transcribe input.wav --output result.txt
-    voice-input-cli transcribe input.wav --streaming
-    voice-input-cli transcribe input.wav --hotwords "遍历 数组 函数"
-    voice-input-cli transcribe input.wav --json
-    voice-input-cli batch ./audio_dir/ --output results.jsonl
+    voice-input-cli listen                          # record from mic, Enter to stop
+    voice-input-cli listen --duration 5             # record 5 seconds
+    voice-input-cli listen --device 1 --json        # specify mic, JSON output
+    voice-input-cli transcribe input.wav            # transcribe WAV file
+    voice-input-cli transcribe input.wav --json     # with metadata
+    voice-input-cli batch ./audio_dir/              # batch transcribe
+    voice-input-cli devices                         # list audio input devices
+    voice-input-cli doctor                          # self-test
 """
 
 from __future__ import annotations
@@ -148,6 +149,149 @@ def cmd_info(args: argparse.Namespace) -> int:
         "default_streaming_model": DEFAULT_STREAMING_MODEL,
     }
     print(json.dumps(info, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_listen(args: argparse.Namespace) -> int:
+    """Record from microphone, transcribe, and print text.
+
+    Works in any terminal — no GUI, no desktop environment needed.
+    Press Enter to stop recording (or use --duration for fixed-length).
+    """
+    import tempfile
+    import threading
+    import sounddevice as sd
+    import soundfile as sf_mod
+    import numpy as np
+
+    config = _build_config(args)
+    recognizer = _create_recognizer(config)
+    print("Loading model...", file=sys.stderr)
+    recognizer.load()
+
+    device = args.device
+    duration = args.duration
+    sample_rate = 16000
+    channels = 1
+
+    # Query device capabilities
+    if device is not None:
+        info = sd.query_devices(device)
+        sample_rate = int(info.get("default_samplerate", 16000))
+        channels = min(2, int(info.get("max_input_channels", 1)))
+
+    buffer: list[np.ndarray] = []
+    recording = True
+
+    def callback(indata, frames, time_info, status):
+        if recording:
+            buffer.append(indata.copy())
+
+    stream = sd.InputStream(
+        device=device,
+        samplerate=sample_rate,
+        channels=channels,
+        callback=callback,
+    )
+
+    print("Recording... (press Enter to stop)", file=sys.stderr, flush=True)
+    stream.start()
+    start = time.time()
+
+    if duration:
+        # Fixed duration mode
+        try:
+            time.sleep(duration)
+        except KeyboardInterrupt:
+            pass
+    else:
+        # Wait for Enter or Ctrl+C
+        stop_event = threading.Event()
+
+        def wait_enter():
+            try:
+                input()
+            except EOFError:
+                pass
+            stop_event.set()
+
+        t = threading.Thread(target=wait_enter, daemon=True)
+        t.start()
+        try:
+            stop_event.wait()
+        except KeyboardInterrupt:
+            pass
+
+    recording = False
+    stream.stop()
+    stream.close()
+    elapsed_rec = time.time() - start
+    print(f"Recorded {elapsed_rec:.1f}s", file=sys.stderr)
+
+    if not buffer:
+        print("Error: no audio captured", file=sys.stderr)
+        return 1
+
+    # Save to temp WAV
+    audio = np.concatenate(buffer, axis=0)
+    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    tmp.close()
+    sf_mod.write(tmp.name, audio, sample_rate)
+
+    # Denoise if requested
+    audio_path = tmp.name
+    if not args.no_denoise:
+        try:
+            import noisereduce as nr
+            data, sr = sf_mod.read(audio_path, dtype="float32")
+            if data.ndim == 2:
+                data = data.mean(axis=1)
+            reduced = nr.reduce_noise(y=data, sr=sr, prop_decrease=0.8)
+            denoised_path = audio_path.replace(".wav", "_denoised.wav")
+            sf_mod.write(denoised_path, reduced, sr)
+            audio_path = denoised_path
+        except Exception:
+            pass
+
+    # Transcribe
+    start = time.time()
+    text = clean_spaces(recognizer.transcribe(audio_path, args.hotwords or ""))
+    elapsed_ms = int((time.time() - start) * 1000)
+
+    # Apply corrections from hotwords file
+    if config.enable_hotwords:
+        from .hotwords import HotwordManager
+        from .text_processing import apply_corrections
+        from .config import resolve_resource_path
+        hw_path = resolve_resource_path(config, "hotwords_file")
+        hm = HotwordManager(hw_path)
+        if hm.corrections:
+            text = apply_corrections(text, hm.corrections)
+
+    if args.json:
+        output = {
+            "text": text,
+            "recorded_seconds": round(elapsed_rec, 1),
+            "elapsed_ms": elapsed_ms,
+        }
+        print(json.dumps(output, ensure_ascii=False, indent=2))
+    else:
+        print(text)
+
+    # Save audio if requested
+    if args.save:
+        save_path = Path(args.save)
+        import shutil
+        shutil.copy2(tmp.name, str(save_path))
+        print(f"Audio saved: {save_path}", file=sys.stderr)
+
+    # Cleanup
+    try:
+        Path(tmp.name).unlink()
+        Path(tmp.name.replace(".wav", "_denoised.wav")).unlink(missing_ok=True)
+    except OSError:
+        pass
+
     return 0
 
 
@@ -424,6 +568,28 @@ def build_parser() -> argparse.ArgumentParser:
     p_b.add_argument("--no-quantize", action="store_true")
     add_backend_args(p_b)
     p_b.set_defaults(func=cmd_batch)
+
+    # listen
+    p_l = sub.add_parser(
+        "listen",
+        help="Record from microphone and transcribe (no GUI needed)",
+    )
+    p_l.add_argument(
+        "-d", "--duration", type=float, default=None,
+        help="Record for N seconds (default: press Enter to stop)",
+    )
+    p_l.add_argument(
+        "--device", type=int, default=None,
+        help="Audio input device index (see: voice-input-cli devices)",
+    )
+    p_l.add_argument("-m", "--model", help="Model dir or ModelScope ID")
+    p_l.add_argument("--hotwords", help="Space-separated hotwords")
+    p_l.add_argument("--no-quantize", action="store_true")
+    p_l.add_argument("--no-denoise", action="store_true", help="Skip noise reduction")
+    p_l.add_argument("--json", action="store_true", help="Output JSON with metadata")
+    p_l.add_argument("--save", help="Save recorded audio to this path")
+    add_backend_args(p_l)
+    p_l.set_defaults(func=cmd_listen)
 
     # info
     p_i = sub.add_parser("info", help="Show version and default model IDs")

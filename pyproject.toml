@@ -10,8 +10,6 @@ readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
 dependencies = [
-    "PySide6>=6.5",
-    "pynput>=1.7",
     "funasr-onnx>=0.3",
     "opencc-python-reimplemented>=0.1.7",
     "sounddevice>=0.4",
@@ -22,6 +20,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+gui = ["PySide6>=6.5", "pynput>=1.7"]
 macos = ["pyobjc-framework-ApplicationServices", "pyobjc-framework-Cocoa"]
 sherpa = ["sherpa-onnx>=1.12"]
 dev = ["pytest", "pytest-cov", "ruff"]
