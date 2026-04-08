@@ -49,7 +49,9 @@ class AudioRecorder:
         self._target_channels = channels
         self.sample_rate: int = sample_rate
         self.channels: int = channels
-        self.buffer: list = []
+        # Accumulate numpy chunks (cheap: just a list append of ndarray refs)
+        # instead of converting to Python list on every audio callback.
+        self.buffer: list[np.ndarray] = []
         self.is_recording: bool = False
         self.stream: Any = None  # sd.InputStream once started
 
@@ -124,7 +126,8 @@ class AudioRecorder:
         if not self.is_recording:
             return
 
-        self.buffer.extend(indata.tolist())
+        # Copy because sounddevice reuses the buffer between callbacks.
+        self.buffer.append(indata.copy())
 
         # Streaming: resample incoming audio and feed chunks
         if self._on_chunk and self._chunk_samples_16k > 0:
@@ -141,11 +144,17 @@ class AudioRecorder:
         self._streaming_buffer = np.array([], dtype=np.float32)
         self.is_recording = True
 
+    def _concat_buffer(self) -> np.ndarray:
+        """Concatenate accumulated chunk arrays into one array."""
+        if not self.buffer:
+            return np.empty((0,), dtype=np.float32)
+        return np.concatenate(self.buffer, axis=0)
+
     def stop_recording(self, output_path: str) -> str:
         """Stop recording and save to WAV file. Returns the output path."""
         self.is_recording = False
         if self.buffer:
-            data = np.array(self.buffer)
+            data = self._concat_buffer()
             sf.write(output_path, data, self.sample_rate)
         return output_path
 
@@ -153,7 +162,7 @@ class AudioRecorder:
         """Get the full recording resampled to 16kHz mono."""
         if not self.buffer:
             return np.array([], dtype=np.float32)
-        data = np.array(self.buffer)
+        data = self._concat_buffer()
         return resample_to_16k_mono(data, self.sample_rate, self.channels)
 
     def flush_streaming_buffer(self):

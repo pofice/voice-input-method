@@ -19,6 +19,16 @@ model_dir: ""
 # Use INT8 quantization for faster inference (recommended)
 quantize: true
 
+# --- sherpa-sensevoice backend paths (only used when recognizer_backend="sherpa-sensevoice") ---
+# Download: https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2
+sensevoice_model_path: ""   # e.g. /path/to/sherpa-onnx-sense-voice-.../model.int8.onnx
+sensevoice_tokens_path: ""  # e.g. /path/to/sherpa-onnx-sense-voice-.../tokens.txt
+sensevoice_language: "zh"   # zh / en / ja / ko / yue
+
+# --- sherpa-nano backend path (only used when recognizer_backend="sherpa-nano") ---
+# Directory must contain encoder_adaptor.int8.onnx, llm.int8.onnx, embedding.int8.onnx, Qwen3-0.6B/
+nano_model_dir: ""
+
 # Audio recording
 sample_rate: 44100
 channels: 2

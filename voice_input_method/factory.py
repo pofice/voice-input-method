@@ -17,22 +17,41 @@ from .engine import VoiceEngine, EngineConfig
 from .protocols import RecordingIndicator, Recognizer
 
 
+class ConfigError(ValueError):
+    """Raised when required configuration for a backend is missing or invalid."""
+
+
 def _create_recognizer(config: Config) -> Recognizer:
-    """Create the appropriate recognizer based on config.recognizer_backend."""
+    """Create the appropriate recognizer based on config.recognizer_backend.
+
+    Raises ConfigError when a sherpa backend is selected but required paths
+    are missing, so the user gets a clear message instead of a cryptic
+    FileNotFoundError from deep inside sherpa-onnx.
+    """
     backend = config.recognizer_backend
 
     if backend == "sherpa-sensevoice":
+        if not config.sensevoice_model_path or not config.sensevoice_tokens_path:
+            raise ConfigError(
+                "sherpa-sensevoice backend requires both 'sensevoice_model_path' "
+                "and 'sensevoice_tokens_path' in config"
+            )
         from .recognition.sherpa_sensevoice import SherpaSenseVoiceRecognizer
         return SherpaSenseVoiceRecognizer(
-            model_path=config.model_dir,
-            tokens_path=config.tokens_path if hasattr(config, "tokens_path") else "",
-            language="zh",
+            model_path=config.sensevoice_model_path,
+            tokens_path=config.sensevoice_tokens_path,
+            language=config.sensevoice_language,
             num_threads=4,
         )
 
     if backend == "sherpa-nano":
+        if not config.nano_model_dir:
+            raise ConfigError(
+                "sherpa-nano backend requires 'nano_model_dir' in config "
+                "(directory containing encoder_adaptor/llm/embedding .onnx files)"
+            )
         from .recognition.sherpa_nano import SherpaNanoRecognizer
-        model_dir = config.model_dir
+        model_dir = config.nano_model_dir.rstrip("/")
         return SherpaNanoRecognizer(
             encoder_adaptor_path=f"{model_dir}/encoder_adaptor.int8.onnx",
             llm_path=f"{model_dir}/llm.int8.onnx",
@@ -41,6 +60,9 @@ def _create_recognizer(config: Config) -> Recognizer:
             language="zh",
             num_threads=4,
         )
+
+    if backend != "funasr":
+        raise ConfigError(f"unknown recognizer_backend: {backend!r}")
 
     # Default: "funasr" — SeacoParaformer via funasr_onnx
     from .recognition.funasr_recognizer import FunASRRecognizer
@@ -54,6 +76,7 @@ def create_engine(
     config: Config,
     on_partial=None,
     on_result=None,
+    on_error=None,
 ) -> VoiceEngine:
     """Assemble a fully-wired VoiceEngine from a Config object.
 
@@ -64,6 +87,14 @@ def create_engine(
     backend = get_backend(config.platform)
 
     # Streaming recognizer (optional, funasr backend only)
+    if config.streaming and config.recognizer_backend != "funasr":
+        import warnings
+        warnings.warn(
+            f"streaming=True requires recognizer_backend='funasr', but got "
+            f"'{config.recognizer_backend}'. Streaming will be disabled.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
     streaming_recognizer = None
     if config.streaming and config.recognizer_backend == "funasr":
         from .recognition.funasr_recognizer import FunASRStreamingRecognizer
@@ -117,6 +148,7 @@ def create_engine(
         chinese_converter=chinese_converter,
         on_partial=on_partial,
         on_result=on_result,
+        on_error=on_error,
     )
 
     # Wire streaming chunk callback

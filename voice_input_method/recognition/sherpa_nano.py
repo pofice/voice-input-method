@@ -54,7 +54,8 @@ class SherpaNanoRecognizer:
         if data.ndim == 2:
             data = data.mean(axis=1)
         s = self._recognizer.create_stream()
-        s.accept_waveform(sr, data.tolist())
+        # sherpa-onnx accepts a numpy float32 array directly.
+        s.accept_waveform(sr, data)
         self._recognizer.decode_stream(s)
 
     def transcribe(self, wav_path: str, hotwords: str = "") -> str:
@@ -64,6 +65,7 @@ class SherpaNanoRecognizer:
         if data.ndim == 2:
             data = data.mean(axis=1)
         s = self._recognizer.create_stream()
-        s.accept_waveform(sr, data.tolist())
+        # sherpa-onnx accepts a numpy float32 array directly.
+        s.accept_waveform(sr, data)
         self._recognizer.decode_stream(s)
         return s.result.text.strip()

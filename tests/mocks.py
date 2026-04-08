@@ -121,9 +121,10 @@ class MockIndicator:
         self.hide_count = 0
         self.shutdown_called = False
 
-    def show(self) -> None:
+    def show(self, style: str = "dot") -> None:
         self.visible = True
         self.show_count += 1
+        self.last_style = style
 
     def hide(self) -> None:
         self.visible = False

@@ -52,7 +52,9 @@ class SherpaSenseVoiceRecognizer:
         if data.ndim == 2:
             data = data.mean(axis=1)
         s = self._recognizer.create_stream()
-        s.accept_waveform(sr, data.tolist())
+        # sherpa-onnx accepts a numpy float32 array directly; avoid
+        # the costly .tolist() conversion for long audio.
+        s.accept_waveform(sr, data)
         self._recognizer.decode_stream(s)
 
     def transcribe(self, wav_path: str, hotwords: str = "") -> str:
@@ -62,7 +64,9 @@ class SherpaSenseVoiceRecognizer:
         if data.ndim == 2:
             data = data.mean(axis=1)
         s = self._recognizer.create_stream()
-        s.accept_waveform(sr, data.tolist())
+        # sherpa-onnx accepts a numpy float32 array directly; avoid
+        # the costly .tolist() conversion for long audio.
+        s.accept_waveform(sr, data)
         self._recognizer.decode_stream(s)
         text = s.result.text
         # Strip SenseVoice metadata tags like <|zh|><|NEUTRAL|><|Speech|>

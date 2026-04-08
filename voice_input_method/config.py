@@ -19,7 +19,7 @@ DEFAULT_STREAMING_MODEL = (
 @dataclass
 class Config:
     # Model
-    model_type: str = "seaco_paraformer"  # "paraformer" or "seaco_paraformer"
+    model_type: str = "seaco_paraformer"  # currently only "seaco_paraformer"
     model_dir: str = ""
     quantize: bool = True
 
@@ -29,6 +29,14 @@ class Config:
 
     # Recognizer backend: "funasr" (SeacoParaformer), "sherpa-sensevoice", "sherpa-nano"
     recognizer_backend: str = "funasr"
+
+    # sherpa-sensevoice backend paths (required when recognizer_backend="sherpa-sensevoice")
+    sensevoice_model_path: str = ""   # path to model.int8.onnx
+    sensevoice_tokens_path: str = ""  # path to tokens.txt
+    sensevoice_language: str = "zh"
+
+    # sherpa-nano backend paths (required when recognizer_backend="sherpa-nano")
+    nano_model_dir: str = ""          # dir containing encoder_adaptor/llm/embedding/tokenizer
 
     # Hotkey
     hotkey: str = "scroll_lock"

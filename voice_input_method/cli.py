@@ -21,9 +21,31 @@ import sys
 import time
 from pathlib import Path
 
-from .config import load_config, DEFAULT_OFFLINE_MODELS, DEFAULT_STREAMING_MODEL
+from .config import Config, load_config, DEFAULT_OFFLINE_MODELS, DEFAULT_STREAMING_MODEL
+from .factory import _create_recognizer
 from .recognition.funasr_recognizer import FunASRRecognizer, FunASRStreamingRecognizer
 from .text_processing import clean_spaces
+
+
+def _build_config(args: argparse.Namespace) -> Config:
+    """Build a Config from argparse args, honoring --config file and CLI overrides."""
+    config_path = getattr(args, "config", None)
+    config = load_config(config_path) if config_path else Config()
+
+    # CLI flags override config file
+    if getattr(args, "backend", None):
+        config.recognizer_backend = args.backend
+    if getattr(args, "model", None):
+        config.model_dir = args.model
+    if getattr(args, "no_quantize", False):
+        config.quantize = False
+    if getattr(args, "sensevoice_model", None):
+        config.sensevoice_model_path = args.sensevoice_model
+    if getattr(args, "sensevoice_tokens", None):
+        config.sensevoice_tokens_path = args.sensevoice_tokens
+    if getattr(args, "nano_model_dir", None):
+        config.nano_model_dir = args.nano_model_dir
+    return config
 
 
 def cmd_transcribe(args: argparse.Namespace) -> int:
@@ -43,12 +65,11 @@ def cmd_transcribe(args: argparse.Namespace) -> int:
             quantize=not args.no_quantize,
         )
     else:
-        result_text = _transcribe_offline(
-            wav_path,
-            model_dir=args.model or DEFAULT_OFFLINE_MODELS["seaco_paraformer"],
-            quantize=not args.no_quantize,
-            hotwords=hotwords,
-        )
+        config = _build_config(args)
+        recognizer = _create_recognizer(config)
+        print(f"Loading {config.recognizer_backend} recognizer...", file=sys.stderr)
+        recognizer.load()
+        result_text = clean_spaces(recognizer.transcribe(str(wav_path), hotwords))
         partials = []
 
     elapsed_ms = int((time.time() - start) * 1000)
@@ -87,11 +108,9 @@ def cmd_batch(args: argparse.Namespace) -> int:
         print(f"Error: no .wav files in {input_dir}", file=sys.stderr)
         return 1
 
-    print(f"Loading model...", file=sys.stderr)
-    recognizer = FunASRRecognizer(
-        model_dir=args.model or DEFAULT_OFFLINE_MODELS["seaco_paraformer"],
-        quantize=not args.no_quantize,
-    )
+    config = _build_config(args)
+    recognizer = _create_recognizer(config)
+    print(f"Loading {config.recognizer_backend} recognizer...", file=sys.stderr)
     recognizer.load()
 
     output_path = Path(args.output) if args.output else None
@@ -198,14 +217,14 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     recognizer_holder = {}
 
     def check_model_load():
-        rec = FunASRRecognizer(
-            model_dir=args.model or DEFAULT_OFFLINE_MODELS["seaco_paraformer"],
-            quantize=not args.no_quantize,
-        )
+        config = _build_config(args)
+        rec = _create_recognizer(config)
         rec.load()
         recognizer_holder["rec"] = rec
-        model_id = args.model or DEFAULT_OFFLINE_MODELS["seaco_paraformer"]
-        return f"loaded {model_id}"
+        model_id = args.model or DEFAULT_OFFLINE_MODELS.get(
+            config.model_type, config.recognizer_backend
+        )
+        return f"loaded {config.recognizer_backend} ({model_id})"
 
     # 4. Run inference (silence is enough — we just need it not to crash)
     def check_inference():
@@ -333,6 +352,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
+    def add_backend_args(p: argparse.ArgumentParser) -> None:
+        p.add_argument("--config", help="Path to config.yaml (optional)")
+        p.add_argument(
+            "--backend",
+            choices=["funasr", "sherpa-sensevoice", "sherpa-nano"],
+            help="Recognizer backend (overrides config)",
+        )
+        p.add_argument(
+            "--sensevoice-model",
+            help="Path to SenseVoice model.int8.onnx (sherpa-sensevoice backend)",
+        )
+        p.add_argument(
+            "--sensevoice-tokens",
+            help="Path to SenseVoice tokens.txt (sherpa-sensevoice backend)",
+        )
+        p.add_argument(
+            "--nano-model-dir",
+            help="Directory of Fun-ASR-Nano ONNX files (sherpa-nano backend)",
+        )
+
     # transcribe
     p_t = sub.add_parser("transcribe", help="Transcribe a single WAV file")
     p_t.add_argument("input", help="Path to input .wav file")
@@ -355,6 +394,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_t.add_argument(
         "--json", action="store_true", help="Output JSON with metadata instead of text"
     )
+    add_backend_args(p_t)
     p_t.set_defaults(func=cmd_transcribe)
 
     # batch
@@ -364,6 +404,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_b.add_argument("-m", "--model", help="Model dir or ModelScope ID")
     p_b.add_argument("--hotwords", help="Space-separated hotwords")
     p_b.add_argument("--no-quantize", action="store_true")
+    add_backend_args(p_b)
     p_b.set_defaults(func=cmd_batch)
 
     # info
@@ -377,6 +418,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_d.add_argument("-m", "--model", help="Model ID to test (default: built-in)")
     p_d.add_argument("--no-quantize", action="store_true")
+    add_backend_args(p_d)
     p_d.set_defaults(func=cmd_doctor)
 
     return parser

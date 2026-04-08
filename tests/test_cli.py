@@ -53,7 +53,7 @@ class TestTranscribeWithMocks:
         wav = tmp_path / "test.wav"
         wav.write_bytes(b"RIFF\x00\x00\x00\x00WAVE")
 
-        with patch("voice_input_method.cli.FunASRRecognizer") as MockRec:
+        with patch("voice_input_method.cli._create_recognizer") as MockRec:
             instance = MockRec.return_value
             instance.transcribe.return_value = "你 好 世界"
 
@@ -67,7 +67,7 @@ class TestTranscribeWithMocks:
         wav.write_bytes(b"RIFF\x00\x00\x00\x00WAVE")
         out_file = tmp_path / "out.txt"
 
-        with patch("voice_input_method.cli.FunASRRecognizer") as MockRec:
+        with patch("voice_input_method.cli._create_recognizer") as MockRec:
             MockRec.return_value.transcribe.return_value = "测试结果"
             rc = cli.main(["transcribe", str(wav), "-o", str(out_file)])
             assert rc == 0
@@ -77,7 +77,7 @@ class TestTranscribeWithMocks:
         wav = tmp_path / "test.wav"
         wav.write_bytes(b"RIFF\x00\x00\x00\x00WAVE")
 
-        with patch("voice_input_method.cli.FunASRRecognizer") as MockRec:
+        with patch("voice_input_method.cli._create_recognizer") as MockRec:
             MockRec.return_value.transcribe.return_value = "结果文本"
             rc = cli.main(["transcribe", str(wav), "--json"])
             assert rc == 0
@@ -91,7 +91,7 @@ class TestTranscribeWithMocks:
         wav = tmp_path / "test.wav"
         wav.write_bytes(b"RIFF\x00\x00\x00\x00WAVE")
 
-        with patch("voice_input_method.cli.FunASRRecognizer") as MockRec:
+        with patch("voice_input_method.cli._create_recognizer") as MockRec:
             MockRec.return_value.transcribe.return_value = "测试"
             cli.main(["transcribe", str(wav), "--hotwords", "遍历 数组"])
 
@@ -104,14 +104,14 @@ class TestTranscribeWithMocks:
         wav = tmp_path / "test.wav"
         wav.write_bytes(b"RIFF\x00\x00\x00\x00WAVE")
 
-        with patch("voice_input_method.cli.FunASRRecognizer") as MockRec:
+        with patch("voice_input_method.cli._create_recognizer") as MockRec:
             MockRec.return_value.transcribe.return_value = ""
             cli.main(["transcribe", str(wav), "--no-quantize"])
 
-            # Verify quantize=False was passed to constructor
+            # Verify quantize=False was set on the config passed to the factory
             MockRec.assert_called_once()
-            kwargs = MockRec.call_args.kwargs
-            assert kwargs.get("quantize") is False
+            config_arg = MockRec.call_args.args[0]
+            assert config_arg.quantize is False
 
 
 class TestBatchWithMocks:
@@ -122,7 +122,7 @@ class TestBatchWithMocks:
 
         out_file = tmp_path / "results.jsonl"
 
-        with patch("voice_input_method.cli.FunASRRecognizer") as MockRec:
+        with patch("voice_input_method.cli._create_recognizer") as MockRec:
             MockRec.return_value.transcribe.side_effect = [
                 "结果一", "结果二", "结果三"
             ]
