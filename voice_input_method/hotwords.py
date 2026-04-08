@@ -9,10 +9,11 @@ from typing import Callable
 
 
 class HotwordManager:
-    MAX_LENGTH = 10
+    MAX_LENGTH = 40
 
     def __init__(self, hotwords_path: Path, on_reload: Callable[[], None] | None = None):
         self.path = hotwords_path
+        self._hotwords_list: list[str] = []
         self._hotwords_str: str = ""
         self._on_reload = on_reload
         self._watcher = None  # lazy: created only if start_watching() is called
@@ -20,7 +21,13 @@ class HotwordManager:
 
     @property
     def hotwords_str(self) -> str:
+        """Space-separated hotwords string (funasr format)."""
         return self._hotwords_str
+
+    @property
+    def hotwords_csv(self) -> str:
+        """Comma-separated hotwords string (sherpa-nano format)."""
+        return ",".join(self._hotwords_list)
 
     def reload(self) -> None:
         """Load hotwords from file. Pure I/O, no Qt needed."""
@@ -35,8 +42,10 @@ class HotwordManager:
                         hotwords.append(line[: self.MAX_LENGTH])
                         line = line[self.MAX_LENGTH :]
                     hotwords.append(line)
+            self._hotwords_list = hotwords
             self._hotwords_str = " ".join(hotwords)
         except FileNotFoundError:
+            self._hotwords_list = []
             self._hotwords_str = ""
         except Exception as e:
             print(f"Error loading hotwords: {e}")

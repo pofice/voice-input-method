@@ -5,7 +5,7 @@
 # funasr: default, fast ONNX inference, supports hotwords and streaming
 # sherpa-sensevoice: built-in punctuation + ITN, small model (229MB int8)
 # sherpa-nano: LLM-based, best accuracy for dialects/accents, requires sherpa-onnx
-recognizer_backend: funasr
+recognizer_backend: sherpa-nano
 
 # ASR Model
 # model_type: "seaco_paraformer" (supports hotwords)
@@ -27,10 +27,10 @@ sensevoice_language: "zh"   # zh / en / ja / ko / yue
 
 # --- sherpa-nano backend path (only used when recognizer_backend="sherpa-nano") ---
 # Directory must contain encoder_adaptor.int8.onnx, llm.int8.onnx, embedding.int8.onnx, Qwen3-0.6B/
-nano_model_dir: ""
+nano_model_dir: "models/sherpa-onnx-funasr-nano-int8-2025-12-30"
 # LLM prompts for sherpa-nano (optional). You can stuff business context here
 # as a stronger alternative to hotwords, since the model is LLM-based.
-nano_system_prompt: "You are a helpful assistant."
+nano_system_prompt: "You are a voice transcription assistant. The speaker often talks about coding tools like Claude Code, ChatGPT, Cursor, GitHub Copilot, and Python libraries. Transcribe these names accurately."
 nano_user_prompt: "语音转写:"
 
 # Audio recording

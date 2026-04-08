@@ -137,7 +137,11 @@ def create_engine(
     # Offline recognizer — selected by backend config.
     # Pass hotwords through for backends that bake them at construction time
     # (sherpa-nano); funasr ignores this and reads hotwords per-call.
-    initial_hotwords = hotword_manager.hotwords_str if hotword_manager else ""
+    if config.recognizer_backend == "sherpa-nano" and hotword_manager:
+        # sherpa-nano expects comma-separated hotwords
+        initial_hotwords = hotword_manager.hotwords_csv
+    else:
+        initial_hotwords = hotword_manager.hotwords_str if hotword_manager else ""
     recognizer = _create_recognizer(config, hotwords=initial_hotwords)
 
     # Audio recorder — chunk callback wired after engine creation

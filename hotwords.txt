@@ -1,2 +1,8 @@
-遍历
-递归
+# 热词列表（每行一个）
+# sherpa-nano 后端大小写敏感，请用正确的大小写
+Claude Code
+ChatGPT
+GitHub Copilot
+Cursor
+OpenCode
+OpenClaw
