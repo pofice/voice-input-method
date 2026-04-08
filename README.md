@@ -42,8 +42,8 @@ macOS 用户需要在**系统设置 → 隐私与安全性 → 辅助功能**中
 | 核心业务流水线（录音→识别→后处理→粘贴） | `voice_input_method/engine.py` 的 `VoiceEngine` 类 |
 | 各组件的接口契约 | `voice_input_method/protocols.py` — Protocol 定义 |
 | ASR 识别后端（3 种可选） | `voice_input_method/recognition/` — funasr / sherpa-sensevoice / sherpa-nano |
-| 录音怎么做 | `voice_input_method/audio.py` |
-| 文本后处理（繁简、热词、字母合并） | `voice_input_method/text_processing.py`、`voice_input_method/hotwords.py` |
+| 录音怎么做（含运行时切换设备） | `voice_input_method/audio.py` |
+| 文本后处理（繁简、热词、字母合并、纠错） | `voice_input_method/text_processing.py`、`voice_input_method/hotwords.py` |
 | 命令行入口 / 各命令选项 | `voice_input_method/cli.py`，或运行 `voice-input-cli --help` |
 | GUI 怎么和 engine 交互 | `voice_input_method/app.py` — 这是一个薄壳，业务逻辑全在 `engine` 里 |
 | 录音指示器（浮动红点） | `voice_input_method/indicator.py` — macOS 用 AppKit 子进程实现 |
@@ -99,13 +99,21 @@ pip install ".[integration]"     # 集成测试需要的额外依赖
 ```shell
 voice-input
 voice-input --config /path/to/config.yaml
+voice-input --device 2                      # 指定麦克风设备（索引号用 voice-input-cli devices 查）
 ```
 
-两种录音方式：
+三种录音方式：
 - **长按热键**（默认 `scroll_lock`，macOS 可用 `fn`）：按住录音，松开识别
-- **Toggle 热键**（默认 `alt`/Option）：按一次开始长录音，再按一次停止并识别。转录结果自动保存到 `~/voice-recordings/`
+- **Toggle 热键**（默认 `alt`/Option）：按一次开始长录音，再按一次停止并识别
+- **GUI 长录音按钮**（窗口底部圆形按钮 ●）：点击开始长录音，再点停止并识别
+
+长录音结果（文字 + 原始音频）自动保存到 `~/voice-recordings/`。
+
+两种热键互斥：长按录音时 toggle 热键不响应，反之亦然。
 
 录音时屏幕底部会出现浮动指示器（红点 = 普通录音，红点 + 白圈 = 长录音）。
+
+**运行时切换麦克风**：在窗口上右键打开菜单 →「切换麦克风」，选择其他输入设备，无需重启。
 
 热键在 `config.yaml` 的 `hotkey` 和 `toggle_hotkey` 里配置。
 
@@ -115,13 +123,21 @@ voice-input --config /path/to/config.yaml
 voice-input-cli --help                          # 顶层帮助
 voice-input-cli transcribe --help               # 单文件转写所有选项
 voice-input-cli batch --help                    # 批量转写所有选项
+voice-input-cli listen --help                   # 麦克风录音转写所有选项
+voice-input-cli devices                         # 列出可用麦克风设备（JSON）
 voice-input-cli info                            # 版本和默认模型 ID
 
 voice-input-cli transcribe input.wav            # 最简用法
 voice-input-cli transcribe input.wav --json     # 结构化输出（含耗时）
+
+# 麦克风录音转写（无需 GUI / 桌面环境）
+voice-input-cli listen                          # 按 Enter 停止录音并转写
+voice-input-cli listen --duration 5             # 录 5 秒自动停止
+voice-input-cli listen --device 1 --json        # 指定麦克风 + JSON 输出
+voice-input-cli listen --save recording.wav     # 同时保存录音文件
 ```
 
-CLI 完全 headless：吃 WAV 文件吐文字，不需要 GUI/麦克风/键盘。结构化 JSON 输出适合 AI agent 拿来判断改动有没有效果。
+CLI 完全 headless，不需要 GUI/桌面环境。`transcribe` / `batch` 吃 WAV 文件吐文字；`listen` 直接录音转写，适合 SSH 远程或无桌面场景。结构化 JSON 输出适合 AI agent 拿来判断改动有没有效果。
 
 ## 识别后端
 
@@ -191,6 +207,7 @@ nano_user_prompt: "语音转写:"
 |------|------|--------|
 | 降噪（识别前） | 开 | `enable_noise_reduction` |
 | 热词增强 | 开 | `enable_hotwords` + `hotwords.txt` |
+| 热词纠错（`wrong -> right`） | 开 | `hotwords.txt` 中的纠错规则 |
 | 繁简转换 | 开 | `enable_traditional_chinese` |
 | 单字母合并（A I → AI） | 始终开启 | — |
 | 末尾标点剥离（。！？等） | 开 | `strip_trailing_punctuation` |
@@ -240,9 +257,22 @@ engine.stop_recording()
 
 各平台的具体实现在 `voice_input_method/platform/{x11,wayland,windows,macos}.py`，每个文件不到 30 行。加新平台只需要继承 `PlatformBackend` 并在 `platform/__init__.py:get_backend()` 注册。
 
-## 自定义热词
+## 自定义热词与纠错
 
-编辑 `hotwords.txt`，每行一个词，运行时修改自动热重载。规则见 `voice_input_method/hotwords.py` 的 `HotwordManager`。
+编辑 `hotwords.txt`，运行时修改自动热重载。规则见 `voice_input_method/hotwords.py` 的 `HotwordManager`。
+
+```text
+# 热词：每行一个，增强 ASR 对这些词的识别率
+Claude Code
+Anthropic
+语音输入法
+
+# 纠错规则：wrong -> right，ASR 识别后自动替换
+Cloud Code -> Claude Code
+Anthrobic -> Anthropic
+```
+
+热词提高 ASR 对该词的识别率（funasr 每次调用生效，sherpa-nano 加载时烤入需重启）。纠错规则是后处理替换，对所有后端生效，不需要重启。
 
 ```shell
 python tools/rime_ice2hotwords.py /path/to/rime_ice.userdb.txt -o hotwords.txt
