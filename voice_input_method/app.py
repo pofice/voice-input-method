@@ -6,6 +6,7 @@ Hotkey listening lives in hotkey.py.
 This file only handles PySide6 widgets and signals.
 """
 
+import shutil
 import time
 from datetime import datetime
 from pathlib import Path
@@ -137,21 +138,68 @@ class MainWindow(QWidget):
         self.textEdit.move(0, 0)
         self.textEdit.resize(self.width(), self.height() - 32)
 
-        # Input button
+        # Button bar height and circle size
+        self._btn_h = 32
+        self._circle_size = 28
+
+        # Input button (left)
         self.button = InputButton(self)
         self.button.setText("长按输入")
-        self.button.resize(self.width() // 2, 32)
-        self.button.move(0, self.height() - 32)
         self.button.pressed.connect(self._on_start_recording)
         self.button.released.connect(self._on_stop_recording)
 
-        # Convert button
+        # Long recording button (center, circular)
+        self.longRecordButton = QPushButton(self)
+        self.longRecordButton.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.longRecordButton.setFixedSize(self._circle_size, self._circle_size)
+        self._long_recording_active = False
+        self._update_long_record_style()
+        self.longRecordButton.clicked.connect(self._on_long_record_button)
+
+        # Convert button (right)
         self.convertButton = InputButton(self)
         self.convertButton.setText("繁简转换")
-        self.convertButton.resize(self.width() // 2, 32)
-        self.convertButton.move(self.width() // 2, self.height() - 32)
         self.convertButton.released.connect(self._convert_text)
 
+        self._layout_buttons()
+        self.convertButton.released.connect(self._convert_text)
+
+
+    def _layout_buttons(self):
+        """Position the three buttons at the bottom of the window."""
+        w = self.width()
+        h = self._btn_h
+        circle = self._circle_size
+        side_w = (w - circle) // 2
+
+        self.button.resize(side_w, h)
+        self.button.move(0, self.height() - h)
+
+        # Center the circle vertically and horizontally between the two buttons
+        self.longRecordButton.move(side_w + (circle - self._circle_size) // 2,
+                                    self.height() - h + (h - circle) // 2)
+
+        self.convertButton.resize(w - side_w - circle, h)
+        self.convertButton.move(side_w + circle, self.height() - h)
+
+    def _update_long_record_style(self):
+        if self._long_recording_active:
+            self.longRecordButton.setStyleSheet(
+                f"background-color: #e53935; border-radius: {self._circle_size // 2}px; "
+                "border: 2px solid rgba(255,255,255,0.6);"
+            )
+        else:
+            self.longRecordButton.setStyleSheet(
+                f"background-color: rgba(90, 133, 15, 1); border-radius: {self._circle_size // 2}px; "
+                "border: 2px solid rgba(255,255,255,0.3);"
+            )
+
+    def _on_long_record_button(self):
+        """GUI button click toggles long recording."""
+        if not self._long_recording_active:
+            self._on_long_record_start()
+        else:
+            self._on_long_record_stop()
 
     # --- Recording lifecycle ---
 
@@ -167,15 +215,19 @@ class MainWindow(QWidget):
 
     def _on_long_record_start(self):
         self._long_record_start = time.time()
+        self._long_recording_active = True
+        self._update_long_record_style()
         self.engine.start_recording()
         self._indicator.show("ring")
 
     def _on_long_record_stop(self):
         duration = int(time.time() - self._long_record_start) if self._long_record_start else 0
         self._long_record_start = None
+        self._long_recording_active = False
+        self._update_long_record_style()
         self.engine.stop_recording()
         self._indicator.hide()
-        # Save transcription to file after result callback fires
+        # Save transcription + audio to file after result callback fires
         self._pending_long_save_duration = duration
 
     def _on_transcription(self, text: str):
@@ -186,16 +238,22 @@ class MainWindow(QWidget):
             self._pending_long_save_duration = None
 
     def _save_long_recording(self, text: str, duration: int):
-        """Save transcription to ~/voice-recordings/YYYY-MM-DD_HH-MM-SS_XXs.txt"""
+        """Save transcription and audio to ~/voice-recordings/"""
         if not text.strip():
             return
         save_dir = Path.home() / "voice-recordings"
         save_dir.mkdir(exist_ok=True)
         ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        filename = f"{ts}_{duration}s.txt"
-        filepath = save_dir / filename
-        filepath.write_text(text, encoding="utf-8")
-        print(f"Long recording saved: {filepath}")
+        base = f"{ts}_{duration}s"
+        # Save transcript
+        txt_path = save_dir / f"{base}.txt"
+        txt_path.write_text(text, encoding="utf-8")
+        # Save original audio
+        audio_src = Path(self.engine._audio_path)
+        if audio_src.exists():
+            wav_path = save_dir / f"{base}.wav"
+            shutil.copy2(str(audio_src), str(wav_path))
+        print(f"Long recording saved: {save_dir / base}.*")
 
     # --- UI callbacks ---
 
@@ -219,12 +277,8 @@ class MainWindow(QWidget):
             event.accept()
 
     def resizeEvent(self, event):
-        btn_h = self.button.height()
-        self.textEdit.resize(self.width(), self.height() - btn_h)
-        self.button.resize(self.width() // 2, btn_h)
-        self.convertButton.resize(self.width() // 2, btn_h)
-        self.button.move(0, self.height() - btn_h)
-        self.convertButton.move(self.width() // 2, self.height() - btn_h)
+        self.textEdit.resize(self.width(), self.height() - self._btn_h)
+        self._layout_buttons()
 
     def closeEvent(self, event):
         self._indicator.shutdown()
