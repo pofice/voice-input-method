@@ -222,6 +222,52 @@ class TestHotwords:
         assert transcribed_hotwords[0] == "测试 热词"
 
 
+class TestOnErrorCallback:
+    def test_on_error_called_when_transcribe_fails(self, mock_recorder, mock_paster):
+        """on_error callback is invoked when offline transcription raises."""
+        errors: list[Exception] = []
+
+        class FailRecognizer(MockRecognizer):
+            def transcribe(self, wav_path, hotwords=""):
+                raise RuntimeError("model exploded")
+
+        engine = VoiceEngine(
+            config=EngineConfig(streaming=False),
+            recorder=mock_recorder,
+            recognizer=FailRecognizer(),
+            paster=mock_paster,
+            on_error=lambda exc: errors.append(exc),
+        )
+        engine.start()
+        engine.start_recording()
+        engine.stop_recording()
+        time.sleep(0.5)
+        assert len(errors) == 1
+        assert "model exploded" in str(errors[0])
+        # Nothing should have been pasted
+        assert len(mock_paster.pasted) == 0
+
+    def test_no_on_error_doesnt_crash(self, mock_recorder, mock_paster):
+        """Without on_error, transcription error is printed but doesn't crash."""
+        class FailRecognizer(MockRecognizer):
+            def transcribe(self, wav_path, hotwords=""):
+                raise RuntimeError("silent fail")
+
+        engine = VoiceEngine(
+            config=EngineConfig(streaming=False),
+            recorder=mock_recorder,
+            recognizer=FailRecognizer(),
+            paster=mock_paster,
+            # no on_error
+        )
+        engine.start()
+        engine.start_recording()
+        engine.stop_recording()
+        time.sleep(0.5)
+        # Should not raise, just print traceback
+        assert len(mock_paster.pasted) == 0
+
+
 class TestConvertChinese:
     def test_convert_returns_none_without_converter(self, engine):
         result = engine.convert_chinese("你好")
