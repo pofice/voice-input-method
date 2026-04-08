@@ -15,7 +15,6 @@ from PySide6.QtWidgets import QApplication, QWidget, QPushButton, QTextEdit, QMe
 from PySide6.QtGui import QMouseEvent, QIcon
 from PySide6.QtCore import Qt, QEvent, Signal, QPointF
 
-from .audio import AudioRecorder
 from .config import Config, resolve_resource_path
 from .factory import create_engine, create_indicator
 from .hotkey import CombinedHotkeyListener
@@ -274,7 +273,7 @@ class MainWindow(QWidget):
         menu = QMenu(self)
         # Audio device submenu
         device_menu = menu.addMenu("切换麦克风")
-        devices = AudioRecorder.list_input_devices()
+        devices = self.engine.recorder.refresh_and_list_devices()
         for dev in devices:
             action = device_menu.addAction(dev["name"])
             action.setData(dev["index"])

@@ -217,15 +217,26 @@ class AudioRecorder:
             if self.stream:
                 self.stream.start()
 
-    @staticmethod
-    def list_input_devices(refresh: bool = True) -> list[dict]:
-        """Return a list of available input devices (re-scans hardware)."""
-        import sounddevice as sd
-        if refresh:
-            # Force PortAudio to re-scan devices (it caches the list).
-            # Existing streams survive re-init on macOS/Windows.
-            sd._terminate()
-            sd._initialize()
+    def refresh_and_list_devices(self) -> list[dict]:
+        """Re-scan hardware and return available input devices.
+
+        Restores the current audio stream after PortAudio re-init.
+        """
+        sd = self._sd
+        # Stop current stream before re-init
+        had_stream = self.stream is not None
+        if self.stream:
+            try:
+                self.stream.stop()
+                self.stream.close()
+            except Exception:
+                pass
+            self.stream = None
+
+        # Re-scan
+        sd._terminate()
+        sd._initialize()
+
         devices = []
         for i, d in enumerate(sd.query_devices()):
             if d.get("max_input_channels", 0) > 0:
@@ -235,6 +246,13 @@ class AudioRecorder:
                     "channels": d["max_input_channels"],
                     "sample_rate": int(d.get("default_samplerate", 44100)),
                 })
+
+        # Restore stream
+        if had_stream:
+            self.stream = self._open_stream()
+            if self.stream:
+                self.stream.start()
+
         return devices
 
     def stop(self):
