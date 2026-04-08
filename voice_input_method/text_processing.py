@@ -14,6 +14,21 @@ def _merge_single_letters(text: str) -> str:
     return re.sub(r"(?<![a-zA-Z])([a-zA-Z] ){1,}[a-zA-Z](?![a-zA-Z])", _replace, text)
 
 
+# Trailing punctuation: Chinese full-width + ASCII + ellipsis/middle dot.
+# Whitespace is included so trailing spaces get cleaned in the same pass.
+_TRAILING_PUNCT_RE = re.compile(r"[\s。！？，、；：,.!?;:…·]+$")
+
+
+def strip_trailing_punctuation(text: str) -> str:
+    """Remove punctuation marks (CJK + ASCII) at the end of *text*.
+
+    Useful for IME-style insertion where the user usually doesn't want
+    a trailing period after every utterance. Internal punctuation is
+    preserved.
+    """
+    return _TRAILING_PUNCT_RE.sub("", text)
+
+
 def clean_spaces(text: str) -> str:
     """Remove unnecessary spaces between CJK characters and between CJK and Latin.
     Also merge isolated single letters like 'A I' → 'AI', 'K F C' → 'KFC'.

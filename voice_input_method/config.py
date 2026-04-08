@@ -58,6 +58,7 @@ class Config:
     enable_hotwords: bool = True
     enable_traditional_chinese: bool = True
     enable_noise_reduction: bool = True
+    strip_trailing_punctuation: bool = True  # remove "。", "！", "?", etc. at end
 
     # Platform override (auto-detected if empty)
     platform: str = ""

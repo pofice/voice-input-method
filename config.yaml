@@ -67,6 +67,7 @@ two_pass: false
 enable_hotwords: true           # Load custom hotwords from hotwords.txt
 enable_traditional_chinese: true # Enable simplified↔traditional Chinese toggle
 enable_noise_reduction: true    # Apply noise reduction before recognition
+strip_trailing_punctuation: true # Remove trailing 。！？，. etc. from recognized text
 
 # Platform override (auto-detected if empty)
 # Options: x11, wayland, windows, macos

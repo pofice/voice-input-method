@@ -189,6 +189,7 @@ nano_model_dir: "/abs/path/sherpa-onnx-funasr-nano-int8-2025-12-30"
 | 热词增强 | 开 | `enable_hotwords` + `hotwords.txt` |
 | 繁简转换 | 开 | `enable_traditional_chinese` |
 | 单字母合并（A I → AI） | 始终开启 | — |
+| 末尾标点剥离（。！？等） | 开 | `strip_trailing_punctuation` |
 
 ## 测试
 

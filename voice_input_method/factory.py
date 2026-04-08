@@ -111,6 +111,7 @@ def create_engine(
         two_pass=config.two_pass and config.recognizer_backend == "funasr",
         enable_traditional_chinese=config.enable_traditional_chinese,
         enable_noise_reduction=config.enable_noise_reduction,
+        strip_trailing_punctuation=config.strip_trailing_punctuation,
         chunk_size=config.chunk_size or [5, 10, 5],
     )
 

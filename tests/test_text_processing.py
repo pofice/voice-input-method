@@ -2,7 +2,52 @@
 
 import pytest
 
-from voice_input_method.text_processing import clean_spaces, ChineseConverter
+from voice_input_method.text_processing import (
+    clean_spaces,
+    strip_trailing_punctuation,
+    ChineseConverter,
+)
+
+
+class TestStripTrailingPunctuation:
+    def test_strip_chinese_period(self):
+        assert strip_trailing_punctuation("你好。") == "你好"
+
+    def test_strip_chinese_exclamation(self):
+        assert strip_trailing_punctuation("你好！") == "你好"
+
+    def test_strip_chinese_question(self):
+        assert strip_trailing_punctuation("你好吗？") == "你好吗"
+
+    def test_strip_english_period(self):
+        assert strip_trailing_punctuation("hello.") == "hello"
+
+    def test_strip_english_exclamation(self):
+        assert strip_trailing_punctuation("hello!") == "hello"
+
+    def test_strip_multiple_trailing(self):
+        assert strip_trailing_punctuation("你好！？。") == "你好"
+
+    def test_preserves_internal_punctuation(self):
+        assert strip_trailing_punctuation("你好，世界。") == "你好，世界"
+
+    def test_strip_trailing_whitespace_too(self):
+        assert strip_trailing_punctuation("你好。  ") == "你好"
+
+    def test_empty_string(self):
+        assert strip_trailing_punctuation("") == ""
+
+    def test_only_punctuation(self):
+        assert strip_trailing_punctuation("。。。") == ""
+
+    def test_no_trailing_punct(self):
+        assert strip_trailing_punctuation("你好") == "你好"
+
+    def test_strip_ellipsis(self):
+        assert strip_trailing_punctuation("你好…") == "你好"
+
+    def test_strip_comma(self):
+        assert strip_trailing_punctuation("你好，") == "你好"
 
 
 class TestCleanSpaces:

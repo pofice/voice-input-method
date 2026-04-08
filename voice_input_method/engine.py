@@ -27,7 +27,7 @@ from .protocols import (
     StreamingRecognizerProto,
     TextPaster,
 )
-from .text_processing import clean_spaces
+from .text_processing import clean_spaces, strip_trailing_punctuation
 
 
 @dataclass
@@ -38,6 +38,7 @@ class EngineConfig:
     two_pass: bool = False
     enable_traditional_chinese: bool = False
     enable_noise_reduction: bool = True
+    strip_trailing_punctuation: bool = True
     chunk_size: list[int] = field(default_factory=lambda: [5, 10, 5])
 
 
@@ -224,6 +225,8 @@ class VoiceEngine:
 
     def _deliver(self, text: str) -> None:
         """Post-process and deliver the final result."""
+        if self.config.strip_trailing_punctuation:
+            text = strip_trailing_punctuation(text)
         if self.on_result:
             self.on_result(text)
         self.paster.paste_text(text)
