@@ -15,6 +15,7 @@ class HotwordManager:
         self.path = hotwords_path
         self._hotwords_list: list[str] = []
         self._hotwords_str: str = ""
+        self._corrections: dict[str, str] = {}
         self._on_reload = on_reload
         self._watcher = None  # lazy: created only if start_watching() is called
         self.reload()
@@ -29,14 +30,25 @@ class HotwordManager:
         """Comma-separated hotwords string (sherpa-nano format)."""
         return ",".join(self._hotwords_list)
 
+    @property
+    def corrections(self) -> dict[str, str]:
+        """Post-ASR correction rules: wrong → right."""
+        return self._corrections
+
     def reload(self) -> None:
         """Load hotwords from file. Pure I/O, no Qt needed."""
         try:
             hotwords: list[str] = []
+            corrections: dict[str, str] = {}
             with open(self.path, "r", encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if not line or line.startswith("#"):
+                        continue
+                    # Correction rule: "wrong -> right"
+                    if " -> " in line:
+                        wrong, right = line.split(" -> ", 1)
+                        corrections[wrong.strip()] = right.strip()
                         continue
                     while len(line) > self.MAX_LENGTH:
                         hotwords.append(line[: self.MAX_LENGTH])
@@ -44,9 +56,11 @@ class HotwordManager:
                     hotwords.append(line)
             self._hotwords_list = hotwords
             self._hotwords_str = " ".join(hotwords)
+            self._corrections = corrections
         except FileNotFoundError:
             self._hotwords_list = []
             self._hotwords_str = ""
+            self._corrections = {}
         except Exception as e:
             print(f"Error loading hotwords: {e}")
 

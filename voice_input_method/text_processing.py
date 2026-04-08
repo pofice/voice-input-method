@@ -29,6 +29,18 @@ def strip_trailing_punctuation(text: str) -> str:
     return _TRAILING_PUNCT_RE.sub("", text)
 
 
+def apply_corrections(text: str, corrections: dict[str, str]) -> str:
+    """Apply text corrections: replace wrong ASR outputs with correct forms.
+
+    *corrections* maps wrong → right, e.g. {"Cloud Code": "Claude Code"}.
+    Matching is case-insensitive.
+    """
+    for wrong, right in corrections.items():
+        pattern = re.compile(re.escape(wrong), re.IGNORECASE)
+        text = pattern.sub(right, text)
+    return text
+
+
 def clean_spaces(text: str) -> str:
     """Remove unnecessary spaces between CJK characters and between CJK and Latin.
     Also merge isolated single letters like 'A I' → 'AI', 'K F C' → 'KFC'.

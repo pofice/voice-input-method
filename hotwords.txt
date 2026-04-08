@@ -6,3 +6,7 @@ GitHub Copilot
 Cursor
 OpenCode
 OpenClaw
+
+# 纠错规则（格式: 错误 -> 正确）
+# ASR 常见误识别，后处理阶段自动替换
+Cloud Code -> Claude Code

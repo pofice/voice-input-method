@@ -27,7 +27,7 @@ from .protocols import (
     StreamingRecognizerProto,
     TextPaster,
 )
-from .text_processing import clean_spaces, strip_trailing_punctuation
+from .text_processing import apply_corrections, clean_spaces, strip_trailing_punctuation
 
 
 @dataclass
@@ -225,6 +225,8 @@ class VoiceEngine:
 
     def _deliver(self, text: str) -> None:
         """Post-process and deliver the final result."""
+        if self.hotword_provider and self.hotword_provider.corrections:
+            text = apply_corrections(text, self.hotword_provider.corrections)
         if self.config.strip_trailing_punctuation:
             text = strip_trailing_punctuation(text)
         if self.on_result:
