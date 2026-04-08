@@ -54,6 +54,7 @@ macOS 用户需要在**系统设置 → 隐私与安全性 → 辅助功能**中
 | 默认模型 ID | `voice_input_method/config.py` 的 `DEFAULT_OFFLINE_MODELS` / `DEFAULT_STREAMING_MODEL` |
 | 平台后端如何加新平台 | `voice_input_method/platform/base.py` 的 `PlatformBackend` ABC，然后参考 `x11.py`/`macos.py` 等 |
 | 热键配置和 toggle 模式 | `voice_input_method/hotkey.py` — `CombinedHotkeyListener` 在一个 Listener 里处理两个热键 |
+| AI 开发规范和提交规范 | `CLAUDE.md` — 架构约束、变更同步清单、新增后端步骤（非 Claude Code 用户也应读） |
 
 **架构原则**（这一段不会变，可以信赖）：
 - 依赖只能从外向内：GUI/CLI → factory → engine → protocols → 具体实现
@@ -139,6 +140,64 @@ voice-input-cli listen --save recording.wav     # 同时保存录音文件
 
 CLI 完全 headless，不需要 GUI/桌面环境。`transcribe` / `batch` 吃 WAV 文件吐文字；`listen` 直接录音转写，适合 SSH 远程或无桌面场景。结构化 JSON 输出适合 AI agent 拿来判断改动有没有效果。
 
+**所有命令**：进度信息走 stderr，结果走 stdout，可安全 pipe。
+
+### Exit Code 契约
+
+| 退出码 | 含义 | 示例 |
+|--------|------|------|
+| `0` | 成功 | 正常转写、doctor 全部通过 |
+| `1` | 输入错误（调用方可修复） | 文件不存在、目录下无 .wav、参数错误、doctor 某步失败 |
+
+未捕获的异常（`ConfigError`、模型加载失败等）会导致 Python traceback + 非零退出码，stderr 里有完整错误信息。
+
+### JSON 输出格式
+
+**`transcribe --json`**：
+```json
+{
+  "input": "input.wav",
+  "text": "识别结果文字",
+  "elapsed_ms": 1234,
+  "mode": "offline"
+}
+```
+streaming 模式额外包含 `"partials": ["片段1", "片段2"]`。
+
+**`batch`**（始终输出 JSONL，每行一条）：
+```json
+{"file": "001.wav", "text": "识别结果", "elapsed_ms": 890}
+```
+
+**`listen --json`**：
+```json
+{
+  "text": "识别结果文字",
+  "recorded_seconds": 3.2,
+  "elapsed_ms": 1456
+}
+```
+
+**`devices`**（始终 JSON）：
+```json
+[
+  {"index": 0, "name": "MacBook Pro Microphone", "channels": 1, "sample_rate": 48000},
+  {"index": 2, "name": "USB Audio", "channels": 2, "sample_rate": 44100}
+]
+```
+
+**`doctor`**：
+```json
+{
+  "ok": true,
+  "checks": [
+    {"check": "import core dependencies", "status": "ok", "detail": "8 modules importable"},
+    {"check": "ASR model load", "status": "ok", "detail": "loaded funasr (...)"}
+  ]
+}
+```
+失败的 check 会有 `"status": "fail"` 和 `"error": "错误信息"`。
+
 ## 识别后端
 
 | 后端 | 模型 | 大小 | 热词 | 标点/ITN | 流式 | 安装 |
@@ -181,7 +240,12 @@ voice-input-cli transcribe input.wav \
   --nano-model-dir ./sherpa-onnx-funasr-nano-int8-2025-12-30
 ```
 
-同样的参数适用于 `batch` 和 `doctor` 子命令。
+同样的参数适用于 `batch`、`listen` 和 `doctor` 子命令：
+
+```shell
+# listen 也支持切后端
+voice-input-cli listen --backend sherpa-nano --nano-model-dir ./sherpa-onnx-funasr-nano-int8-2025-12-30
+```
 
 ### config.yaml 切换（GUI 常驻）
 
@@ -246,6 +310,34 @@ engine.stop_recording()
 
 要从 `Config` 直接装配真实 engine（不要 GUI），用 `voice_input_method.factory.create_engine`，详见该文件。
 
+### AI 改完代码后的标准验证
+
+```shell
+# 单元测试 + doctor 一起跑，exit 0 = 安全提交
+pytest tests/ -m "not integration" && voice-input-cli doctor
+```
+
+### Python API 最小调用
+
+不想走 CLI，直接在 Python 里调用：
+
+```python
+from voice_input_method.config import Config
+from voice_input_method.factory import _create_recognizer
+
+config = Config()  # 默认 funasr 后端
+recognizer = _create_recognizer(config)
+recognizer.load()
+text = recognizer.transcribe("input.wav")
+print(text)
+```
+
+切后端只需要改 Config：
+```python
+config = Config(recognizer_backend="sherpa-nano", nano_model_dir="/path/to/model")
+recognizer = _create_recognizer(config)
+```
+
 ## 平台
 
 | 平台 | 输入方式 | 注意事项 |
@@ -277,6 +369,16 @@ Anthrobic -> Anthropic
 ```shell
 python tools/rime_ice2hotwords.py /path/to/rime_ice.userdb.txt -o hotwords.txt
 ```
+
+## 常见问题排查
+
+| 报错 | 原因 | 解决 |
+|------|------|------|
+| `ConfigError: sensevoice_model_path is required` | 选了 sherpa 后端但没配模型路径 | 按「模型下载」章节下载模型，配置路径 |
+| `OSError: PortAudio library not found` | 系统缺 PortAudio（`listen` / `devices` 需要） | macOS: `brew install portaudio`；Ubuntu: `apt install libportaudio2` |
+| `ModuleNotFoundError: No module named 'sherpa_onnx'` | 用了 sherpa 后端但没装 sherpa-onnx | `pip install ".[sherpa]"` |
+| `RuntimeWarning: streaming is only supported with funasr` | `streaming: true` 配了非 funasr 后端 | streaming 自动被禁用，改用 `funasr` 或关掉 `streaming` |
+| 模型下载卡住 / 超时 | ModelScope CDN 不稳 | 设 `MODELSCOPE_CACHE` 环境变量指定缓存目录，或手动下载到 `~/.cache/modelscope/` |
 
 ## 致谢
 
