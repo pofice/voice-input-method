@@ -99,6 +99,12 @@ class MainWindow(QWidget):
         self.engine.warmup(str(warmup_path))
         print("Models ready.")
 
+        # Switch to specified audio device if set via --device
+        device_index = getattr(config, "_device_index", None)
+        if device_index is not None:
+            self.engine.recorder.switch_device(device_index)
+            print(f"Using audio device: {device_index}")
+
         # Recording indicator (macOS: native AppKit, others: no-op)
         self._indicator = create_indicator(config.platform)
 

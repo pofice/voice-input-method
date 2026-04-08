@@ -151,6 +151,24 @@ def cmd_info(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_devices(args: argparse.Namespace) -> int:
+    """List available audio input devices (JSON)."""
+    import sounddevice as sd
+    sd._terminate()
+    sd._initialize()
+    devices = []
+    for i, d in enumerate(sd.query_devices()):
+        if d.get("max_input_channels", 0) > 0:
+            devices.append({
+                "index": i,
+                "name": d["name"],
+                "channels": d["max_input_channels"],
+                "sample_rate": int(d.get("default_samplerate", 44100)),
+            })
+    print(json.dumps(devices, ensure_ascii=False, indent=2))
+    return 0
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     """End-to-end self-test: verify deps, download model, run inference.
 
@@ -410,6 +428,10 @@ def build_parser() -> argparse.ArgumentParser:
     # info
     p_i = sub.add_parser("info", help="Show version and default model IDs")
     p_i.set_defaults(func=cmd_info)
+
+    # devices
+    p_dev = sub.add_parser("devices", help="List available audio input devices (JSON)")
+    p_dev.set_defaults(func=cmd_devices)
 
     # doctor
     p_d = sub.add_parser(
