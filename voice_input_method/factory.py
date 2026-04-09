@@ -48,6 +48,25 @@ def _create_recognizer(config: Config, hotwords: str = "") -> Recognizer:
             num_threads=4,
         )
 
+    if backend == "qwen3-asr":
+        if not config.qwen3_model_dir:
+            raise ConfigError(
+                "qwen3-asr backend requires 'qwen3_model_dir' in config "
+                "(directory containing conv_frontend.onnx, encoder.onnx, decoder.onnx, tokenizer/)"
+            )
+        from .recognition.qwen3_asr import Qwen3ASRRecognizer
+        model_dir = config.qwen3_model_dir.rstrip("/")
+        return Qwen3ASRRecognizer(
+            conv_frontend_path=f"{model_dir}/conv_frontend.onnx",
+            encoder_path=f"{model_dir}/encoder.onnx",
+            decoder_path=f"{model_dir}/decoder.onnx",
+            tokenizer_path=f"{model_dir}/tokenizer",
+            num_threads=4,
+            hotwords=hotwords,
+            max_total_len=config.qwen3_max_total_len,
+            max_new_tokens=config.qwen3_max_new_tokens,
+        )
+
     if backend == "sherpa-nano":
         if not config.nano_model_dir:
             raise ConfigError(

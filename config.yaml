@@ -1,10 +1,11 @@
 # Voice Input Method Configuration
 # Copy this file and edit to match your setup.
 
-# Recognizer backend: "funasr" (SeacoParaformer), "sherpa-sensevoice", "sherpa-nano"
+# Recognizer backend: "funasr", "sherpa-sensevoice", "sherpa-nano", "qwen3-asr"
 # funasr: default, fast ONNX inference, supports hotwords and streaming
 # sherpa-sensevoice: built-in punctuation + ITN, small model (229MB int8)
 # sherpa-nano: LLM-based, best accuracy for dialects/accents, requires sherpa-onnx
+# qwen3-asr: LLM-based, 52 languages + 22 Chinese dialects, SOTA accuracy, requires sherpa-onnx
 recognizer_backend: sherpa-nano
 
 # ASR Model
@@ -32,6 +33,15 @@ nano_model_dir: "models/sherpa-onnx-funasr-nano-int8-2025-12-30"
 # as a stronger alternative to hotwords, since the model is LLM-based.
 nano_system_prompt: "You are a voice transcription assistant. The speaker often talks about coding tools like Claude Code, ChatGPT, Cursor, GitHub Copilot, and Python libraries. Transcribe these names accurately."
 nano_user_prompt: "语音转写:"
+
+# --- qwen3-asr backend path (only used when recognizer_backend="qwen3-asr") ---
+# Download: https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25.tar.bz2
+# Directory must contain conv_frontend.onnx, encoder.onnx, decoder.onnx, tokenizer/
+qwen3_model_dir: ""
+# KV cache length: increase for longer audio (512 ≈ 30s, 1024 ≈ 60s, 2048 ≈ 2min)
+qwen3_max_total_len: 512
+# Max output tokens: increase for longer audio (128 ≈ 80 chars, 512 ≈ 300 chars)
+qwen3_max_new_tokens: 128
 
 # Audio recording
 sample_rate: 44100

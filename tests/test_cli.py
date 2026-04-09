@@ -351,6 +351,22 @@ class TestBuildConfig:
         assert config.sensevoice_model_path == "/fake/model.onnx"
         assert config.sensevoice_tokens_path == "/fake/tokens.txt"
 
+    def test_qwen3_override(self):
+        from voice_input_method.cli import _build_config, build_parser
+        parser = build_parser()
+        args = parser.parse_args([
+            "transcribe", "test.wav",
+            "--backend", "qwen3-asr",
+            "--qwen3-model-dir", "/fake/qwen3",
+            "--qwen3-max-total-len", "1024",
+            "--qwen3-max-new-tokens", "256",
+        ])
+        config = _build_config(args)
+        assert config.recognizer_backend == "qwen3-asr"
+        assert config.qwen3_model_dir == "/fake/qwen3"
+        assert config.qwen3_max_total_len == 1024
+        assert config.qwen3_max_new_tokens == 256
+
     def test_config_file_loading(self, tmp_path):
         from voice_input_method.cli import _build_config, build_parser
         cfg = tmp_path / "test_config.yaml"

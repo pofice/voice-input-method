@@ -41,7 +41,7 @@ macOS 用户需要在**系统设置 → 隐私与安全性 → 辅助功能**中
 | 整体架构如何串起来 | `voice_input_method/factory.py` — 一个文件看完所有依赖装配 |
 | 核心业务流水线（录音→识别→后处理→粘贴） | `voice_input_method/engine.py` 的 `VoiceEngine` 类 |
 | 各组件的接口契约 | `voice_input_method/protocols.py` — Protocol 定义 |
-| ASR 识别后端（3 种可选） | `voice_input_method/recognition/` — funasr / sherpa-sensevoice / sherpa-nano |
+| ASR 识别后端（4 种可选） | `voice_input_method/recognition/` — funasr / sherpa-sensevoice / sherpa-nano / qwen3-asr |
 | 录音怎么做（含运行时切换设备） | `voice_input_method/audio.py` |
 | 文本后处理（繁简、热词、字母合并、纠错） | `voice_input_method/text_processing.py`、`voice_input_method/hotwords.py` |
 | 命令行入口 / 各命令选项 | `voice_input_method/cli.py`，或运行 `voice-input-cli --help` |
@@ -75,7 +75,7 @@ macOS 用户需要在**系统设置 → 隐私与安全性 → 辅助功能**中
 ```shell
 pip install .                    # 基础安装（funasr-onnx SeacoParaformer 默认后端）
 pip install -e ".[dev]"          # 开发环境（pytest + ruff）
-pip install ".[sherpa]"          # SenseVoice / Fun-ASR-Nano 后端（需 sherpa-onnx）
+pip install ".[sherpa]"          # SenseVoice / Fun-ASR-Nano / Qwen3-ASR 后端（需 sherpa-onnx）
 pip install ".[macos]"           # macOS 录音指示器（需 PyObjC）
 pip install ".[integration]"     # 集成测试需要的额外依赖
 ```
@@ -205,8 +205,11 @@ streaming 模式额外包含 `"partials": ["片段1", "片段2"]`。
 | `funasr`（默认） | SeacoParaformer | 370MB | ✅ 每次调用 | ❌ | ✅ | 核心依赖 |
 | `sherpa-sensevoice` | SenseVoice-Small | 229MB(int8) | ❌（仅同音字替换 HR） | ✅ 内置 | ❌ | `pip install ".[sherpa]"` |
 | `sherpa-nano` | Fun-ASR-Nano (LLM) | ~800MB(int8) | ✅ 加载时烤入 | ✅ 内置 | ❌ | `pip install ".[sherpa]"` |
+| `qwen3-asr` | Qwen3-ASR-0.6B (LLM) | ~500MB(int8) | ✅ 加载时烤入 | ✅ 内置 | ❌ | `pip install ".[sherpa]"` |
 
-> **热词差异**：`funasr` 每次 transcribe 都接受新热词；`sherpa-nano` 把热词烤进构造函数，修改 `hotwords.txt` 后必须重启程序才生效。`sherpa-nano` 还支持自定义 LLM 提示词（`nano_system_prompt` / `nano_user_prompt`），可以塞业务上下文比硬编热词更灵活。
+> **热词差异**：`funasr` 每次 transcribe 都接受新热词；`sherpa-nano` 和 `qwen3-asr` 把热词烤进构造函数，修改 `hotwords.txt` 后必须重启程序才生效。LLM 后端（`sherpa-nano`、`qwen3-asr`）还支持自定义 LLM 提示词，可以塞业务上下文比硬编热词更灵活。
+>
+> **长音频注意**：`funasr` 和 `sherpa-sensevoice` 无长度限制。`sherpa-nano` 和 `qwen3-asr` 是 LLM 架构，有 KV cache 长度限制（默认 `max_total_len=512`）。长音频（>30s）建议使用 `funasr` 或 `sherpa-sensevoice`，或配合 VAD 分段。`qwen3-asr` 的 `max_total_len` 可运行时调大。
 
 ### 模型下载
 
@@ -220,6 +223,10 @@ tar xjf sherpa-onnx-sense-voice-*.tar.bz2
 # sherpa-nano
 curl -SL -O https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-funasr-nano-int8-2025-12-30.tar.bz2
 tar xjf sherpa-onnx-funasr-nano-*.tar.bz2
+
+# qwen3-asr（52 语言 + 22 中国方言，0.6B 参数，SOTA 精度）
+curl -SL -O https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25.tar.bz2
+tar xjf sherpa-onnx-qwen3-asr-*.tar.bz2
 ```
 
 ### CLI 切换（一次性）
@@ -238,6 +245,17 @@ voice-input-cli transcribe input.wav \
 voice-input-cli transcribe input.wav \
   --backend sherpa-nano \
   --nano-model-dir ./sherpa-onnx-funasr-nano-int8-2025-12-30
+
+# qwen3-asr（--qwen3-model-dir 是目录，目录内必须有 conv_frontend / encoder / decoder / tokenizer）
+voice-input-cli transcribe input.wav \
+  --backend qwen3-asr \
+  --qwen3-model-dir ./sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25
+
+# qwen3-asr 长音频（调大 KV cache 和输出 token 限制）
+voice-input-cli transcribe long_audio.wav \
+  --backend qwen3-asr \
+  --qwen3-model-dir ./sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25 \
+  --qwen3-max-total-len 2048 --qwen3-max-new-tokens 512
 ```
 
 同样的参数适用于 `batch`、`listen` 和 `doctor` 子命令：
@@ -245,12 +263,13 @@ voice-input-cli transcribe input.wav \
 ```shell
 # listen 也支持切后端
 voice-input-cli listen --backend sherpa-nano --nano-model-dir ./sherpa-onnx-funasr-nano-int8-2025-12-30
+voice-input-cli listen --backend qwen3-asr --qwen3-model-dir ./sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25
 ```
 
 ### config.yaml 切换（GUI 常驻）
 
 ```yaml
-recognizer_backend: sherpa-nano   # funasr / sherpa-sensevoice / sherpa-nano
+recognizer_backend: sherpa-nano   # funasr / sherpa-sensevoice / sherpa-nano / qwen3-asr
 
 # sherpa-sensevoice 字段（仅在该后端下生效）
 sensevoice_model_path: "/abs/path/model.int8.onnx"
@@ -261,6 +280,11 @@ sensevoice_language: "zh"
 nano_model_dir: "/abs/path/sherpa-onnx-funasr-nano-int8-2025-12-30"
 nano_system_prompt: "You are a helpful assistant."   # 可塞业务上下文，如 "You transcribe coding/AI tool names"
 nano_user_prompt: "语音转写:"
+
+# qwen3-asr 字段（仅在该后端下生效）
+qwen3_model_dir: "/abs/path/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25"
+qwen3_max_total_len: 512     # KV cache 长度，长音频调大（如 1024/2048）
+qwen3_max_new_tokens: 128    # 最大输出 token 数，长音频调大（如 256/512）
 ```
 
 切换 sherpa 后端时，缺必填字段会立刻抛出 `ConfigError`，错误消息会指出缺哪个字段。`streaming: true` 只对 `funasr` 生效，配合 sherpa 后端会发 `RuntimeWarning` 并自动禁用。
@@ -335,6 +359,7 @@ print(text)
 切后端只需要改 Config：
 ```python
 config = Config(recognizer_backend="sherpa-nano", nano_model_dir="/path/to/model")
+config = Config(recognizer_backend="qwen3-asr", qwen3_model_dir="/path/to/model")
 recognizer = _create_recognizer(config)
 ```
 

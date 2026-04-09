@@ -107,6 +107,48 @@ class TestCreateEngineStreaming:
                 assert "streaming" in str(runtime_warns[0].message).lower()
 
 
+class TestCreateRecognizerQwen3ASR:
+    def test_qwen3_passes_all_params(self):
+        config = Config(
+            recognizer_backend="qwen3-asr",
+            qwen3_model_dir="/fake/qwen3",
+            qwen3_max_total_len=1024,
+            qwen3_max_new_tokens=256,
+        )
+        with patch(
+            "voice_input_method.recognition.qwen3_asr.Qwen3ASRRecognizer"
+        ) as MockRec:
+            _create_recognizer(config, hotwords="Claude Code")
+            MockRec.assert_called_once()
+            kwargs = MockRec.call_args.kwargs
+            assert kwargs["conv_frontend_path"] == "/fake/qwen3/conv_frontend.onnx"
+            assert kwargs["encoder_path"] == "/fake/qwen3/encoder.onnx"
+            assert kwargs["decoder_path"] == "/fake/qwen3/decoder.onnx"
+            assert kwargs["tokenizer_path"] == "/fake/qwen3/tokenizer"
+            assert kwargs["hotwords"] == "Claude Code"
+            assert kwargs["max_total_len"] == 1024
+            assert kwargs["max_new_tokens"] == 256
+
+    def test_qwen3_missing_model_dir(self):
+        config = Config(recognizer_backend="qwen3-asr")
+        with pytest.raises(ConfigError, match="qwen3_model_dir"):
+            _create_recognizer(config)
+
+    def test_qwen3_default_params(self):
+        config = Config(
+            recognizer_backend="qwen3-asr",
+            qwen3_model_dir="/fake/qwen3",
+        )
+        with patch(
+            "voice_input_method.recognition.qwen3_asr.Qwen3ASRRecognizer"
+        ) as MockRec:
+            _create_recognizer(config)
+            kwargs = MockRec.call_args.kwargs
+            assert kwargs["max_total_len"] == 512
+            assert kwargs["max_new_tokens"] == 128
+            assert kwargs["hotwords"] == ""
+
+
 class TestCreateRecognizerSenseVoice:
     """Test sensevoice recognizer construction (mocked import)."""
 

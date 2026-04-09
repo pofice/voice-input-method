@@ -46,6 +46,12 @@ def _build_config(args: argparse.Namespace) -> Config:
         config.sensevoice_tokens_path = args.sensevoice_tokens
     if getattr(args, "nano_model_dir", None):
         config.nano_model_dir = args.nano_model_dir
+    if getattr(args, "qwen3_model_dir", None):
+        config.qwen3_model_dir = args.qwen3_model_dir
+    if getattr(args, "qwen3_max_total_len", None):
+        config.qwen3_max_total_len = args.qwen3_max_total_len
+    if getattr(args, "qwen3_max_new_tokens", None):
+        config.qwen3_max_new_tokens = args.qwen3_max_new_tokens
     return config
 
 
@@ -518,7 +524,7 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--config", help="Path to config.yaml (optional)")
         p.add_argument(
             "--backend",
-            choices=["funasr", "sherpa-sensevoice", "sherpa-nano"],
+            choices=["funasr", "sherpa-sensevoice", "sherpa-nano", "qwen3-asr"],
             help="Recognizer backend (overrides config)",
         )
         p.add_argument(
@@ -532,6 +538,18 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument(
             "--nano-model-dir",
             help="Directory of Fun-ASR-Nano ONNX files (sherpa-nano backend)",
+        )
+        p.add_argument(
+            "--qwen3-model-dir",
+            help="Directory of Qwen3-ASR ONNX files (qwen3-asr backend)",
+        )
+        p.add_argument(
+            "--qwen3-max-total-len", type=int,
+            help="KV cache length for qwen3-asr (default: 512, increase for longer audio)",
+        )
+        p.add_argument(
+            "--qwen3-max-new-tokens", type=int,
+            help="Max output tokens for qwen3-asr (default: 128, increase for longer audio)",
         )
 
     # transcribe

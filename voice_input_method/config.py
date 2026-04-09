@@ -27,7 +27,7 @@ class Config:
     sample_rate: int = 44100
     channels: int = 2
 
-    # Recognizer backend: "funasr" (SeacoParaformer), "sherpa-sensevoice", "sherpa-nano"
+    # Recognizer backend: "funasr", "sherpa-sensevoice", "sherpa-nano", "qwen3-asr"
     recognizer_backend: str = "funasr"
 
     # sherpa-sensevoice backend paths (required when recognizer_backend="sherpa-sensevoice")
@@ -40,6 +40,11 @@ class Config:
     # sherpa-nano LLM prompts (optional; defaults match sherpa-onnx)
     nano_system_prompt: str = "You are a helpful assistant."
     nano_user_prompt: str = "语音转写:"
+
+    # qwen3-asr backend paths (required when recognizer_backend="qwen3-asr")
+    qwen3_model_dir: str = ""    # dir containing conv_frontend/encoder/decoder/tokenizer
+    qwen3_max_total_len: int = 512   # KV cache length (increase for longer audio)
+    qwen3_max_new_tokens: int = 128  # max output tokens (increase for longer audio)
 
     # Hotkey
     hotkey: str = "scroll_lock"
