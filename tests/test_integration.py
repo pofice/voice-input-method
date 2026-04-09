@@ -249,3 +249,99 @@ class TestAudioProcessing:
         assert CHINESE_SPEECH_WAV.exists(), f"Missing: {CHINESE_SPEECH_WAV}"
         assert CHINESE_SHORT_WAV.exists(), f"Missing: {CHINESE_SHORT_WAV}"
         assert SILENCE_WAV.exists(), f"Missing: {SILENCE_WAV}"
+
+
+class TestVADWithRealASR:
+    """Integration test: VAD segmentation + real Paraformer model.
+
+    Creates a long audio by concatenating the test fixture multiple times,
+    then verifies VAD + ASR produces correct results on each segment.
+
+    Requires: silero_vad.onnx model + sherpa-onnx + Paraformer model.
+    """
+
+    def test_vad_segments_long_audio(self, paraformer):
+        """VAD splits long audio, each segment transcribes correctly."""
+        from voice_input_method.vad import VADSegmenter
+
+        vad = VADSegmenter(max_speech_duration=10.0)
+        if not vad.available:
+            pytest.skip("sherpa-onnx or silero_vad.onnx not available")
+
+        # Concatenate the test audio 3x with 1s silence gaps to make ~15s
+        audio, sr = sf.read(str(CHINESE_SPEECH_WAV), dtype="float32")
+        if audio.ndim == 2:
+            audio = audio.mean(axis=1)
+        silence = np.zeros(sr, dtype=np.float32)  # 1 second silence
+        long_audio = np.concatenate([audio, silence, audio, silence, audio])
+
+        segments = vad.segment_audio(long_audio, sample_rate=sr)
+        print(f"VAD produced {len(segments)} segments from {len(long_audio)/sr:.1f}s audio")
+        assert len(segments) >= 2, f"Expected ≥2 segments, got {len(segments)}"
+
+        # Each segment should transcribe to something meaningful
+        import tempfile
+        for i, seg in enumerate(segments):
+            tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+            tmp.close()
+            sf.write(tmp.name, seg, 16000)
+            text = clean_spaces(paraformer.transcribe(tmp.name))
+            Path(tmp.name).unlink()
+            print(f"  Segment {i} ({len(seg)/16000:.1f}s): {text}")
+            assert len(text) > 0, f"Segment {i} produced empty text"
+
+    def test_vad_engine_pipeline(self, paraformer):
+        """Full VoiceEngine pipeline with VAD + real model."""
+        from voice_input_method.vad import VADSegmenter
+
+        vad = VADSegmenter(max_speech_duration=10.0)
+        if not vad.available:
+            pytest.skip("sherpa-onnx or silero_vad.onnx not available")
+
+        # Create long audio
+        audio, sr = sf.read(str(CHINESE_SPEECH_WAV), dtype="float32")
+        if audio.ndim == 2:
+            audio = audio.mean(axis=1)
+        silence = np.zeros(sr, dtype=np.float32)
+        long_audio = np.concatenate([audio, silence, audio])
+
+        # Save as WAV
+        import tempfile
+        long_wav = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+        long_wav.close()
+        sf.write(long_wav.name, long_audio, sr)
+
+        paster = MockPaster()
+        recorder = MockRecorder()
+        results: list[str] = []
+
+        engine = VoiceEngine(
+            config=EngineConfig(streaming=False, enable_noise_reduction=False),
+            recorder=recorder,
+            recognizer=paraformer,
+            paster=paster,
+            vad_segmenter=vad,
+            on_result=lambda t: results.append(t),
+        )
+
+        # Copy long audio to engine's temp path
+        import shutil
+        shutil.copy(long_wav.name, engine._audio_path)
+        Path(long_wav.name).unlink()
+
+        recorder.start()
+        engine.start_recording()
+        engine.stop_recording()
+
+        import time
+        time.sleep(15)  # VAD + multiple ASR inferences take longer
+
+        assert len(results) == 1, f"Expected 1 result, got {len(results)}"
+        text = results[0]
+        print(f"VAD engine pipeline result: {text}")
+
+        # Should contain keywords from the repeated audio
+        for keyword in EXPECTED_KEYWORDS:
+            assert keyword in text, f"Expected '{keyword}' in: {text}"
+
+        engine.shutdown()

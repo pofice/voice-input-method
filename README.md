@@ -44,6 +44,7 @@ macOS 用户需要在**系统设置 → 隐私与安全性 → 辅助功能**中
 | ASR 识别后端（4 种可选） | `voice_input_method/recognition/` — funasr / sherpa-sensevoice / sherpa-nano / qwen3-asr |
 | 录音怎么做（含运行时切换设备） | `voice_input_method/audio.py` |
 | 文本后处理（繁简、热词、字母合并、纠错） | `voice_input_method/text_processing.py`、`voice_input_method/hotwords.py` |
+| 长音频 VAD 分段 | `voice_input_method/vad.py` — Silero VAD 自动切段，短音频跳过 |
 | 命令行入口 / 各命令选项 | `voice_input_method/cli.py`，或运行 `voice-input-cli --help` |
 | GUI 怎么和 engine 交互 | `voice_input_method/app.py` — 这是一个薄壳，业务逻辑全在 `engine` 里 |
 | 录音指示器（浮动红点） | `voice_input_method/indicator.py` — macOS 用 AppKit 子进程实现 |
@@ -289,6 +290,24 @@ qwen3_max_new_tokens: 128    # 最大输出 token 数，长音频调大（如 25
 
 切换 sherpa 后端时，缺必填字段会立刻抛出 `ConfigError`，错误消息会指出缺哪个字段。`streaming: true` 只对 `funasr` 生效，配合 sherpa 后端会发 `RuntimeWarning` 并自动禁用。
 
+### VAD 长音频分段
+
+长音频（>15 秒）自动使用 Silero VAD 切成语音段，逐段识别后拼接。这解决了 LLM 后端（`sherpa-nano`、`qwen3-asr`）的 KV cache 溢出问题，也防止编码器后端的内存问题。
+
+```bash
+# 下载 Silero VAD 模型（~2MB，仅需一次）
+wget https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx
+# 放在项目根目录、models/ 子目录、或 ~/.cache/sherpa-onnx/ 均可自动检测
+```
+
+```yaml
+# config.yaml
+enable_vad: true               # 默认开启
+vad_max_speech_duration: 15    # 每段最长秒数
+```
+
+短音频（<15 秒）自动跳过 VAD，零额外开销。如果 VAD 模型不存在，长音频会直接送 ASR（可能在 LLM 后端上截断）。
+
 ## 功能
 
 | 功能 | 默认 | 配置项 |
@@ -299,6 +318,7 @@ qwen3_max_new_tokens: 128    # 最大输出 token 数，长音频调大（如 25
 | 繁简转换 | 开 | `enable_traditional_chinese` |
 | 单字母合并（A I → AI） | 始终开启 | — |
 | 末尾标点剥离（。！？等） | 开 | `strip_trailing_punctuation` |
+| VAD 长音频分段 | 开 | `enable_vad` + `vad_max_speech_duration` |
 
 ## 测试
 

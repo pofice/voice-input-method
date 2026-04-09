@@ -63,6 +63,7 @@ class VoiceEngine:
         streaming_recognizer: StreamingRecognizerProto | None = None,
         hotword_provider: HotwordProvider | None = None,
         chinese_converter=None,
+        vad_segmenter=None,
         on_partial: Callable[[str], None] | None = None,
         on_result: Callable[[str], None] | None = None,
         on_error: Callable[[Exception], None] | None = None,
@@ -74,6 +75,7 @@ class VoiceEngine:
         self.streaming_recognizer = streaming_recognizer
         self.hotword_provider = hotword_provider
         self.chinese_converter = chinese_converter
+        self.vad_segmenter = vad_segmenter
 
         # Callbacks — UI layer hooks into these
         self.on_partial = on_partial
@@ -196,7 +198,22 @@ class VoiceEngine:
             audio_path = self._audio_path
             if self.config.enable_noise_reduction:
                 audio_path = self._denoise(audio_path)
-            text = self.recognizer.transcribe(audio_path, self._hotwords())
+
+            # VAD segmentation for long audio
+            if self.vad_segmenter:
+                seg_paths = self.vad_segmenter.segment_file(audio_path)
+                try:
+                    texts = []
+                    for sp in seg_paths:
+                        t = self.recognizer.transcribe(sp, self._hotwords())
+                        if t:
+                            texts.append(t)
+                    text = "".join(texts)
+                finally:
+                    self.vad_segmenter.cleanup_temp_files(seg_paths)
+            else:
+                text = self.recognizer.transcribe(audio_path, self._hotwords())
+
             if text:
                 text = clean_spaces(text)
                 self._deliver(text)

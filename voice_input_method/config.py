@@ -68,6 +68,11 @@ class Config:
     enable_noise_reduction: bool = True
     strip_trailing_punctuation: bool = True  # remove "。", "！", "?", etc. at end
 
+    # VAD (Voice Activity Detection) for long audio segmentation
+    enable_vad: bool = True              # auto-segment long audio before ASR
+    vad_max_speech_duration: float = 15.0  # max seconds per segment
+    vad_model_path: str = ""             # path to silero_vad.onnx (auto-detected if empty)
+
     # Platform override (auto-detected if empty)
     platform: str = ""
 

@@ -163,6 +163,15 @@ def create_engine(
         initial_hotwords = hotword_manager.hotwords_str if hotword_manager else ""
     recognizer = _create_recognizer(config, hotwords=initial_hotwords)
 
+    # VAD segmenter (optional, for long audio)
+    vad_segmenter = None
+    if config.enable_vad:
+        from .vad import VADSegmenter
+        vad_segmenter = VADSegmenter(
+            vad_model_path=config.vad_model_path or None,
+            max_speech_duration=config.vad_max_speech_duration,
+        )
+
     # Audio recorder — chunk callback wired after engine creation
     chunk_samples = streaming_recognizer.step_samples if streaming_recognizer else 0
     recorder = AudioRecorder(
@@ -180,6 +189,7 @@ def create_engine(
         streaming_recognizer=streaming_recognizer,
         hotword_provider=hotword_manager,
         chinese_converter=chinese_converter,
+        vad_segmenter=vad_segmenter,
         on_partial=on_partial,
         on_result=on_result,
         on_error=on_error,

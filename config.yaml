@@ -83,6 +83,15 @@ enable_traditional_chinese: true # Enable simplified↔traditional Chinese toggl
 enable_noise_reduction: true    # Apply noise reduction before recognition
 strip_trailing_punctuation: true # Remove trailing 。！？，. etc. from recognized text
 
+# VAD (Voice Activity Detection) for long audio segmentation
+# Automatically splits long audio into segments before ASR.
+# Required for LLM backends (sherpa-nano, qwen3-asr) with long recordings.
+# Also helps encoder backends (funasr, sensevoice) avoid memory issues.
+enable_vad: true
+vad_max_speech_duration: 15    # max seconds per segment (15s safe for all backends)
+# vad_model_path: ""           # path to silero_vad.onnx (auto-detected from ./silero_vad.onnx, ./models/, ~/.cache/sherpa-onnx/)
+# Download: wget https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx
+
 # Platform override (auto-detected if empty)
 # Options: x11, wayland, windows, macos
 platform: ""
