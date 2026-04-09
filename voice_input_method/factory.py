@@ -58,8 +58,8 @@ def _create_recognizer(config: Config, hotwords: str = "") -> Recognizer:
         model_dir = config.qwen3_model_dir.rstrip("/")
         return Qwen3ASRRecognizer(
             conv_frontend_path=f"{model_dir}/conv_frontend.onnx",
-            encoder_path=f"{model_dir}/encoder.onnx",
-            decoder_path=f"{model_dir}/decoder.onnx",
+            encoder_path=f"{model_dir}/encoder.int8.onnx",
+            decoder_path=f"{model_dir}/decoder.int8.onnx",
             tokenizer_path=f"{model_dir}/tokenizer",
             num_threads=4,
             hotwords=hotwords,

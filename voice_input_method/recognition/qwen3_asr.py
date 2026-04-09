@@ -41,17 +41,26 @@ class Qwen3ASRRecognizer:
 
     def load(self) -> None:
         import sherpa_onnx
-        self._recognizer = sherpa_onnx.OfflineRecognizer.from_qwen3_asr(
+        kwargs = dict(
             conv_frontend=self._conv_frontend_path,
             encoder=self._encoder_path,
             decoder=self._decoder_path,
             tokenizer=self._tokenizer_path,
             num_threads=self._num_threads,
             provider=self._provider,
-            hotwords=self._hotwords,
             max_total_len=self._max_total_len,
             max_new_tokens=self._max_new_tokens,
         )
+        # hotwords support depends on sherpa-onnx version
+        if self._hotwords:
+            try:
+                self._recognizer = sherpa_onnx.OfflineRecognizer.from_qwen3_asr(
+                    hotwords=self._hotwords, **kwargs
+                )
+                return
+            except TypeError:
+                pass
+        self._recognizer = sherpa_onnx.OfflineRecognizer.from_qwen3_asr(**kwargs)
 
     def warmup(self, warmup_wav: str, hotwords: str = "") -> None:
         if self._recognizer is None or not warmup_wav:
