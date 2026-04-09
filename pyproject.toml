@@ -36,6 +36,29 @@ markers = [
     "sherpa: sherpa-onnx backend tests (require sherpa-onnx + models)",
 ]
 
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = [
+    "E501",   # line too long — let formatter handle
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["voice_input_method"]
+
+[tool.coverage.run]
+source = ["voice_input_method"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__",
+]
+
 [tool.setuptools.packages.find]
 include = ["voice_input_method*"]
 

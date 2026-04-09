@@ -6,8 +6,8 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
-from .config import load_config, resolve_resource_path
 from .app import MainWindow
+from .config import load_config, resolve_resource_path
 
 
 def main():

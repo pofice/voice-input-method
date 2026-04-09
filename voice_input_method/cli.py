@@ -22,7 +22,7 @@ import sys
 import time
 from pathlib import Path
 
-from .config import Config, load_config, DEFAULT_OFFLINE_MODELS, DEFAULT_STREAMING_MODEL
+from .config import DEFAULT_OFFLINE_MODELS, DEFAULT_STREAMING_MODEL, Config, load_config
 from .factory import _create_recognizer
 from .recognition.funasr_recognizer import FunASRRecognizer, FunASRStreamingRecognizer
 from .text_processing import clean_spaces
@@ -160,9 +160,10 @@ def cmd_listen(args: argparse.Namespace) -> int:
     """
     import tempfile
     import threading
+
+    import numpy as np
     import sounddevice as sd
     import soundfile as sf_mod
-    import numpy as np
 
     config = _build_config(args)
     recognizer = _create_recognizer(config)
@@ -260,9 +261,9 @@ def cmd_listen(args: argparse.Namespace) -> int:
 
     # Apply corrections from hotwords file
     if config.enable_hotwords:
+        from .config import resolve_resource_path
         from .hotwords import HotwordManager
         from .text_processing import apply_corrections
-        from .config import resolve_resource_path
         hw_path = resolve_resource_path(config, "hotwords_file")
         hm = HotwordManager(hw_path)
         if hm.corrections:
@@ -463,7 +464,6 @@ def _transcribe_offline(
 def _transcribe_streaming(
     wav_path: Path, model_dir: str, quantize: bool
 ) -> tuple[str, list[str]]:
-    import numpy as np
     import soundfile as sf
 
     print(f"Loading streaming model: {model_dir}", file=sys.stderr)

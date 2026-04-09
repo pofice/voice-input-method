@@ -1,9 +1,8 @@
 """Tests for the headless CLI entry point."""
 
 import json
-import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -155,7 +154,7 @@ class TestDoctor:
         """Doctor's first check (imports) runs without external state."""
         # We can't fully run doctor in unit tests because it would
         # download a model. But we can verify the check function exists.
-        from voice_input_method.cli import cmd_doctor, build_parser
+        from voice_input_method.cli import build_parser, cmd_doctor
         parser = build_parser()
         # Verify "doctor" subcommand is registered
         args = parser.parse_args(["doctor"])
@@ -166,7 +165,6 @@ class TestListenWithMocks:
     """Test cmd_listen with mocked sounddevice and recognizer."""
 
     def test_listen_with_duration(self, tmp_path, capsys):
-        import numpy as np
 
         mock_sd = MagicMock()
         mock_sf = MagicMock()
@@ -261,8 +259,6 @@ class TestDevicesWithMocks:
 
         with patch.dict("sys.modules", {"sounddevice": mock_sd}):
             # Re-import to pick up the mock
-            import importlib
-            import voice_input_method.cli as cli_mod
 
             from voice_input_method.cli import build_parser
             parser = build_parser()
@@ -274,7 +270,7 @@ class TestDevicesWithMocks:
                 mock_sd._terminate = MagicMock()
                 mock_sd._initialize = MagicMock()
 
-                rc = args.func(args)
+                args.func(args)
                 # Can't easily test stdout here because sd is imported inside func
                 # But we verify the parser works
                 assert args.func.__name__ == "cmd_devices"
@@ -330,7 +326,7 @@ class TestBuildConfig:
     """Test _build_config helper."""
 
     def test_backend_override(self):
-        from voice_input_method.cli import build_parser, _build_config
+        from voice_input_method.cli import _build_config, build_parser
         parser = build_parser()
         args = parser.parse_args([
             "transcribe", "test.wav",
@@ -342,7 +338,7 @@ class TestBuildConfig:
         assert config.nano_model_dir == "/fake/dir"
 
     def test_sensevoice_override(self):
-        from voice_input_method.cli import build_parser, _build_config
+        from voice_input_method.cli import _build_config, build_parser
         parser = build_parser()
         args = parser.parse_args([
             "transcribe", "test.wav",
@@ -356,7 +352,7 @@ class TestBuildConfig:
         assert config.sensevoice_tokens_path == "/fake/tokens.txt"
 
     def test_config_file_loading(self, tmp_path):
-        from voice_input_method.cli import build_parser, _build_config
+        from voice_input_method.cli import _build_config, build_parser
         cfg = tmp_path / "test_config.yaml"
         cfg.write_text("recognizer_backend: sherpa-nano\nnano_model_dir: /test\n")
         parser = build_parser()

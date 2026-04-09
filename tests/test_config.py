@@ -1,12 +1,10 @@
 """Tests for config module."""
 
-import tempfile
 from pathlib import Path
 
-import pytest
 import yaml
 
-from voice_input_method.config import Config, load_config, detect_platform, resolve_resource_path
+from voice_input_method.config import Config, detect_platform, load_config, resolve_resource_path
 
 
 class TestConfig:

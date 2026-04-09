@@ -1,13 +1,12 @@
 """Tests for factory module — verifies engine assembly without GUI."""
 
 import warnings
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from voice_input_method.config import Config
-from voice_input_method.engine import VoiceEngine
-from voice_input_method.factory import _create_recognizer, create_engine, ConfigError
+from voice_input_method.factory import ConfigError, _create_recognizer, create_engine
 
 
 class TestCreateRecognizerSherpaNano:
@@ -82,7 +81,7 @@ class TestConfigErrorPaths:
         """funasr backend creates recognizer without error (mocked import)."""
         config = Config(recognizer_backend="funasr")
         with patch("voice_input_method.recognition.funasr_recognizer.FunASRRecognizer") as MockRec:
-            rec = _create_recognizer(config)
+            _create_recognizer(config)
             MockRec.assert_called_once()
 
 
@@ -102,10 +101,121 @@ class TestCreateEngineStreaming:
             mock_backend.return_value = MagicMock()
             with warnings.catch_warnings(record=True) as w:
                 warnings.simplefilter("always")
-                engine = create_engine(config)
+                create_engine(config)
                 runtime_warns = [x for x in w if issubclass(x.category, RuntimeWarning)]
                 assert len(runtime_warns) >= 1
                 assert "streaming" in str(runtime_warns[0].message).lower()
+
+
+class TestCreateRecognizerSenseVoice:
+    """Test sensevoice recognizer construction (mocked import)."""
+
+    def test_sensevoice_passes_all_params(self):
+        config = Config(
+            recognizer_backend="sherpa-sensevoice",
+            sensevoice_model_path="/fake/model.onnx",
+            sensevoice_tokens_path="/fake/tokens.txt",
+            sensevoice_language="zh",
+        )
+        with patch(
+            "voice_input_method.recognition.sherpa_sensevoice.SherpaSenseVoiceRecognizer"
+        ) as MockRec:
+            _create_recognizer(config)
+            MockRec.assert_called_once()
+            kwargs = MockRec.call_args.kwargs
+            assert kwargs["model_path"] == "/fake/model.onnx"
+            assert kwargs["tokens_path"] == "/fake/tokens.txt"
+            assert kwargs["language"] == "zh"
+            assert kwargs["num_threads"] == 4
+
+
+class TestCreateEngineFullAssembly:
+    """Test create_engine wiring with all dependencies mocked."""
+
+    def test_engine_with_hotwords_funasr(self, tmp_path):
+        """create_engine wires hotword_manager for funasr backend."""
+        hw_file = tmp_path / "hotwords.txt"
+        hw_file.write_text("Claude Code\nCloud Code -> Claude Code\n")
+
+        config = Config(
+            recognizer_backend="funasr",
+            enable_hotwords=True,
+            hotwords_file=str(hw_file),
+            enable_traditional_chinese=False,
+        )
+        with patch("voice_input_method.recognition.funasr_recognizer.FunASRRecognizer"), \
+             patch("voice_input_method.factory.get_backend") as mock_backend:
+            mock_backend.return_value = MagicMock()
+            engine = create_engine(config)
+            assert engine.hotword_provider is not None
+            assert "Claude Code" in engine.hotword_provider.hotwords_str
+            assert engine.hotword_provider.corrections == {"Cloud Code": "Claude Code"}
+
+    def test_engine_with_hotwords_sherpa_nano(self, tmp_path):
+        """create_engine passes csv hotwords for sherpa-nano backend."""
+        hw_file = tmp_path / "hotwords.txt"
+        hw_file.write_text("Claude Code\n遍历\n")
+
+        config = Config(
+            recognizer_backend="sherpa-nano",
+            nano_model_dir="/fake/dir",
+            enable_hotwords=True,
+            hotwords_file=str(hw_file),
+            enable_traditional_chinese=False,
+        )
+        with patch("voice_input_method.recognition.sherpa_nano.SherpaNanoRecognizer") as MockRec, \
+             patch("voice_input_method.factory.get_backend") as mock_backend:
+            mock_backend.return_value = MagicMock()
+            create_engine(config)
+            # Verify hotwords were passed as csv to nano
+            kwargs = MockRec.call_args.kwargs
+            assert kwargs["hotwords"] == "Claude Code,遍历"
+
+    def test_engine_no_hotwords(self):
+        """create_engine without hotwords works."""
+        config = Config(
+            recognizer_backend="funasr",
+            enable_hotwords=False,
+            enable_traditional_chinese=False,
+        )
+        with patch("voice_input_method.recognition.funasr_recognizer.FunASRRecognizer"), \
+             patch("voice_input_method.factory.get_backend") as mock_backend:
+            mock_backend.return_value = MagicMock()
+            engine = create_engine(config)
+            assert engine.hotword_provider is None
+
+    def test_engine_with_streaming_funasr(self):
+        """create_engine with streaming=True + funasr creates streaming recognizer."""
+        config = Config(
+            recognizer_backend="funasr",
+            streaming=True,
+            enable_hotwords=False,
+            enable_traditional_chinese=False,
+        )
+        with patch("voice_input_method.recognition.funasr_recognizer.FunASRRecognizer"), \
+             patch("voice_input_method.recognition.funasr_recognizer.FunASRStreamingRecognizer") as MockStream, \
+             patch("voice_input_method.factory.get_backend") as mock_backend:
+            mock_backend.return_value = MagicMock()
+            MockStream.return_value.step_samples = 9600
+            engine = create_engine(config)
+            assert engine.streaming_recognizer is not None
+            assert engine.config.streaming is True
+
+
+class TestCreateIndicator:
+    def test_non_macos_returns_null(self):
+        from voice_input_method.factory import create_indicator
+        from voice_input_method.indicator import NullIndicator
+        indicator = create_indicator("linux")
+        assert isinstance(indicator, NullIndicator)
+
+    def test_macos_fallback_to_null(self):
+        """On non-macOS systems, macos indicator import fails gracefully."""
+        from voice_input_method.factory import create_indicator
+        from voice_input_method.indicator import NullIndicator
+        with patch("voice_input_method.indicator.MacNativeIndicator", side_effect=ImportError):
+            indicator = create_indicator("macos")
+            assert isinstance(indicator, NullIndicator)
 
 
 class TestCreateEngine:
@@ -116,8 +226,7 @@ class TestCreateEngine:
 
     def test_factory_creates_engine_with_defaults(self):
         """create_engine with default Config produces a VoiceEngine."""
-        from voice_input_method.factory import create_engine
-        config = Config()
+        Config()
         # Platform backend will fail on headless (pynput), but we can
         # at least verify the factory function signature works
         # For a full test we'd need to mock get_backend

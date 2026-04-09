@@ -2,8 +2,8 @@
 
 import pytest
 
+from tests.mocks import MockPaster, MockRecognizer, MockRecorder
 from voice_input_method.engine import EngineConfig, VoiceEngine
-from tests.mocks import MockRecorder, MockRecognizer, MockPaster
 
 
 @pytest.fixture

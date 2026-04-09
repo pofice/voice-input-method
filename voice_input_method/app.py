@@ -11,9 +11,9 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtWidgets import QApplication, QWidget, QPushButton, QTextEdit, QMenu
-from PySide6.QtGui import QMouseEvent, QIcon
-from PySide6.QtCore import Qt, QEvent, Signal, QPointF
+from PySide6.QtCore import QEvent, QPointF, Qt, Signal
+from PySide6.QtGui import QIcon, QMouseEvent
+from PySide6.QtWidgets import QApplication, QMenu, QPushButton, QTextEdit, QWidget
 
 from .config import Config, resolve_resource_path
 from .factory import create_engine, create_indicator

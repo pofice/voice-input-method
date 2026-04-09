@@ -1,19 +1,15 @@
 """Tests for VoiceEngine — the core pipeline, fully mocked."""
 
 import time
-import threading
 
 import numpy as np
-import pytest
 
-from voice_input_method.engine import VoiceEngine, EngineConfig
 from tests.mocks import (
-    MockRecorder,
+    MockHotwordProvider,
     MockRecognizer,
     MockStreamingRecognizer,
-    MockPaster,
-    MockHotwordProvider,
 )
+from voice_input_method.engine import EngineConfig, VoiceEngine
 
 
 class TestEngineLifecycle:
@@ -277,3 +273,103 @@ class TestConvertChinese:
         engine.chinese_converter = type("FakeCC", (), {"convert": lambda s, t: t})()
         result = engine.convert_chinese("")
         assert result is None
+
+    def test_convert_with_converter(self, engine):
+        engine.chinese_converter = type("FakeCC", (), {
+            "convert": lambda s, t: "converted_" + t
+        })()
+        result = engine.convert_chinese("你好")
+        assert result == "converted_你好"
+
+    def test_convert_async(self, mock_recorder, mock_paster):
+        results = []
+        engine = VoiceEngine(
+            config=EngineConfig(),
+            recorder=mock_recorder,
+            recognizer=MockRecognizer(),
+            paster=mock_paster,
+            on_result=lambda t: results.append(t),
+        )
+        engine.chinese_converter = type("FakeCC", (), {
+            "convert": lambda s, t: "async_" + t
+        })()
+        engine.convert_chinese_async("你好")
+        time.sleep(0.3)
+        assert results == ["async_你好"]
+
+
+class TestDenoise:
+    def test_denoise_returns_original_on_error(self, mock_recorder, mock_paster):
+        """When noisereduce fails, _denoise returns original path."""
+        engine = VoiceEngine(
+            config=EngineConfig(enable_noise_reduction=True),
+            recorder=mock_recorder,
+            recognizer=MockRecognizer(),
+            paster=mock_paster,
+        )
+        # _denoise on nonexistent file should return original path
+        result = engine._denoise("/nonexistent/audio.wav")
+        assert result == "/nonexistent/audio.wav"
+
+    def test_denoise_disabled_skips_denoise(self, mock_recorder, mock_paster):
+        """When noise reduction is disabled, offline pipeline skips it."""
+        recognizer = MockRecognizer(text="测试")
+        engine = VoiceEngine(
+            config=EngineConfig(streaming=False, enable_noise_reduction=False),
+            recorder=mock_recorder,
+            recognizer=recognizer,
+            paster=mock_paster,
+        )
+        engine.start()
+        engine.start_recording()
+        engine.stop_recording()
+        time.sleep(0.3)
+        assert mock_paster.pasted == ["测试"]
+
+
+class TestStreamingEdgeCases:
+    def test_streaming_empty_result(self, mock_recorder, mock_paster):
+        """Streaming with no text from recognizer doesn't paste."""
+        streaming = MockStreamingRecognizer(chunks_text=[])
+        engine = VoiceEngine(
+            config=EngineConfig(streaming=True, two_pass=False),
+            recorder=mock_recorder,
+            recognizer=MockRecognizer(),
+            paster=mock_paster,
+            streaming_recognizer=streaming,
+        )
+        engine.start()
+        engine.start_recording()
+        engine.stop_recording()
+        assert len(mock_paster.pasted) == 0
+
+    def test_streaming_final_chunk_text(self, mock_recorder, mock_paster):
+        """Streaming recognizer that returns text on is_final=True."""
+
+        class FinalStreamRecognizer:
+            step_samples = 9600
+
+            def load(self):
+                pass
+
+            def reset(self):
+                pass
+
+            def feed_chunk(self, chunk, is_final=False):
+                if is_final:
+                    return "最终"
+                return "中间"
+
+        engine = VoiceEngine(
+            config=EngineConfig(streaming=True, two_pass=False),
+            recorder=mock_recorder,
+            recognizer=MockRecognizer(),
+            paster=mock_paster,
+            streaming_recognizer=FinalStreamRecognizer(),
+        )
+        engine.start()
+        engine.start_recording()
+        engine.on_audio_chunk(np.zeros(9600, dtype=np.float32))
+        engine.stop_recording()
+        assert len(mock_paster.pasted) == 1
+        assert "最终" in mock_paster.pasted[0]

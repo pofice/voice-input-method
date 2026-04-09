@@ -1,20 +1,20 @@
 """Tests that mock objects satisfy Protocol contracts at runtime."""
 
+from tests.mocks import (
+    MockHotwordProvider,
+    MockIndicator,
+    MockPaster,
+    MockRecognizer,
+    MockRecorder,
+    MockStreamingRecognizer,
+)
 from voice_input_method.protocols import (
     AudioSource,
+    HotwordProvider,
     Recognizer,
     RecordingIndicator,
     StreamingRecognizerProto,
     TextPaster,
-    HotwordProvider,
-)
-from tests.mocks import (
-    MockRecorder,
-    MockRecognizer,
-    MockStreamingRecognizer,
-    MockPaster,
-    MockHotwordProvider,
-    MockIndicator,
 )
 
 

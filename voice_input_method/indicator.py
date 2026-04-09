@@ -14,8 +14,6 @@ NullIndicator: no-op for CLI, headless, and unsupported platforms.
 from __future__ import annotations
 
 import multiprocessing
-import sys
-from multiprocessing import Event, Process, Value
 
 
 class NullIndicator:

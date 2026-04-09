@@ -1,10 +1,10 @@
 """Tests for audio module — resample function is pure numpy, testable anywhere."""
 
-import numpy as np
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
-from voice_input_method.audio import resample_to_16k_mono, AudioRecorder
+import numpy as np
+
+from voice_input_method.audio import AudioRecorder, resample_to_16k_mono
 
 
 class TestResampleTo16kMono:
@@ -159,3 +159,143 @@ class TestAudioRecorderWithMocks:
         rec.is_recording = True
         rec._audio_callback(np.zeros((1600, 1), dtype=np.float32), 1600, None, None)
         assert len(rec.buffer) == 1
+
+    def test_audio_callback_streaming(self):
+        """Streaming callback fires on_chunk when enough samples accumulate."""
+        chunks_received = []
+        rec = AudioRecorder(
+            sample_rate=16000,
+            channels=1,
+            on_chunk=lambda c: chunks_received.append(c.copy()),
+            chunk_samples=1600,  # 100ms at 16kHz
+        )
+        rec.is_recording = True
+        # Feed 3200 samples (2 chunks worth)
+        rec._audio_callback(np.zeros((3200, 1), dtype=np.float32), 3200, None, None)
+        assert len(chunks_received) == 2
+        assert len(chunks_received[0]) == 1600
+
+    def test_flush_streaming_buffer(self):
+        """flush_streaming_buffer sends remaining samples."""
+        chunks_received = []
+        rec = AudioRecorder(
+            sample_rate=16000,
+            channels=1,
+            on_chunk=lambda c: chunks_received.append(c.copy()),
+            chunk_samples=1600,
+        )
+        rec.is_recording = True
+        # Feed less than one chunk
+        rec._audio_callback(np.zeros((800, 1), dtype=np.float32), 800, None, None)
+        assert len(chunks_received) == 0
+        rec.flush_streaming_buffer()
+        assert len(chunks_received) == 1
+        assert len(chunks_received[0]) == 800
+
+    def test_flush_empty_buffer(self):
+        """Flushing empty streaming buffer does nothing."""
+        chunks_received = []
+        rec = AudioRecorder(
+            sample_rate=16000,
+            channels=1,
+            on_chunk=lambda c: chunks_received.append(c),
+            chunk_samples=1600,
+        )
+        rec.flush_streaming_buffer()
+        assert chunks_received == []
+
+    def test_get_recording_16k_mono_with_data(self):
+        rec = AudioRecorder(sample_rate=16000, channels=1)
+        rec.buffer = [np.ones(16000, dtype=np.float32)]
+        result = rec.get_recording_16k_mono()
+        assert result.shape == (16000,)
+        assert result.dtype == np.float32
+
+    def test_concat_buffer_multiple(self):
+        rec = AudioRecorder()
+        rec.buffer = [
+            np.ones(100, dtype=np.float32),
+            np.ones(200, dtype=np.float32),
+        ]
+        result = rec._concat_buffer()
+        assert result.shape == (300,)
+
+    def test_detect_device_default(self):
+        mock_sd = MagicMock()
+        mock_sd.query_devices.return_value = {
+            "max_input_channels": 2,
+            "default_samplerate": 48000.0,
+        }
+        rec = AudioRecorder(sample_rate=44100, channels=2)
+        rec._sd = mock_sd
+        sr, ch = rec._detect_device()
+        assert sr == 48000
+        assert ch == 2
+
+    def test_detect_device_fallback_to_enumerate(self):
+        mock_sd = MagicMock()
+        # First call (kind="input") raises
+        mock_sd.query_devices.side_effect = [
+            RuntimeError("no default"),
+            [
+                {"max_input_channels": 0, "default_samplerate": 44100.0},
+                {"max_input_channels": 1, "default_samplerate": 48000.0},
+            ],
+        ]
+        rec = AudioRecorder()
+        rec._sd = mock_sd
+        sr, ch = rec._detect_device()
+        assert sr == 48000
+        assert ch == 1
+
+    def test_detect_device_all_fail(self):
+        mock_sd = MagicMock()
+        mock_sd.query_devices.side_effect = RuntimeError("total failure")
+        rec = AudioRecorder(sample_rate=44100, channels=1)
+        rec._sd = mock_sd
+        sr, ch = rec._detect_device()
+        assert sr == 44100
+        assert ch == 1
+
+    def test_open_stream_fallback(self):
+        """_open_stream tries multiple params and falls back."""
+        mock_sd = MagicMock()
+        # First two attempts fail, third succeeds
+        mock_stream = MagicMock()
+        mock_stream.samplerate = 44100
+        mock_stream.channels = 1
+        mock_sd.InputStream.side_effect = [
+            RuntimeError("bad params"),
+            RuntimeError("bad params"),
+            mock_stream,
+        ]
+        rec = AudioRecorder()
+        rec._sd = mock_sd
+        rec.sample_rate = 44100
+        rec.channels = 2
+        stream = rec._open_stream()
+        assert stream is mock_stream
+
+    def test_open_stream_all_fail(self):
+        mock_sd = MagicMock()
+        mock_sd.InputStream.side_effect = RuntimeError("all fail")
+        rec = AudioRecorder()
+        rec._sd = mock_sd
+        rec.sample_rate = 44100
+        rec.channels = 1
+        stream = rec._open_stream()
+        assert stream is None
+
+    def test_stop_closes_stream(self):
+        rec = AudioRecorder()
+        mock_stream = MagicMock()
+        rec.stream = mock_stream
+        rec.stop()
+        mock_stream.stop.assert_called_once()
+        mock_stream.close.assert_called_once()
+        assert rec.stream is None
+
+    def test_stop_no_stream(self):
+        rec = AudioRecorder()
+        rec.stream = None
+        rec.stop()  # Should not raise

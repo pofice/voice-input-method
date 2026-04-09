@@ -7,14 +7,14 @@ can call create_engine() without importing PySide6.
 
 from __future__ import annotations
 
-from .config import Config, DEFAULT_OFFLINE_MODELS, resolve_resource_path
 from .audio import AudioRecorder
-from .indicator import NullIndicator
-from .text_processing import ChineseConverter
+from .config import DEFAULT_OFFLINE_MODELS, Config, resolve_resource_path
+from .engine import EngineConfig, VoiceEngine
 from .hotwords import HotwordManager
+from .indicator import NullIndicator
 from .platform import get_backend
-from .engine import VoiceEngine, EngineConfig
-from .protocols import RecordingIndicator, Recognizer
+from .protocols import Recognizer, RecordingIndicator
+from .text_processing import ChineseConverter
 
 
 class ConfigError(ValueError):

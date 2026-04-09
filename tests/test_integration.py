@@ -12,17 +12,19 @@ Requirements:
 - ~30s for first run (model download), ~5s subsequent runs
 """
 
-import os
 from pathlib import Path
 
 import numpy as np
 import pytest
 import soundfile as sf
 
-from voice_input_method.recognition.funasr_recognizer import FunASRRecognizer as SpeechRecognizer, FunASRStreamingRecognizer as StreamingRecognizer
+from tests.mocks import MockPaster, MockRecorder
+from voice_input_method.engine import EngineConfig, VoiceEngine
+from voice_input_method.recognition.funasr_recognizer import FunASRRecognizer as SpeechRecognizer
+from voice_input_method.recognition.funasr_recognizer import (
+    FunASRStreamingRecognizer as StreamingRecognizer,
+)
 from voice_input_method.text_processing import clean_spaces
-from voice_input_method.engine import VoiceEngine, EngineConfig
-from tests.mocks import MockRecorder, MockPaster
 
 # Mark all tests in this module as integration
 pytestmark = pytest.mark.integration
