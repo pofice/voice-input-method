@@ -122,8 +122,8 @@ class TestCreateRecognizerQwen3ASR:
             MockRec.assert_called_once()
             kwargs = MockRec.call_args.kwargs
             assert kwargs["conv_frontend_path"] == "/fake/qwen3/conv_frontend.onnx"
-            assert kwargs["encoder_path"] == "/fake/qwen3/encoder.onnx"
-            assert kwargs["decoder_path"] == "/fake/qwen3/decoder.onnx"
+            assert kwargs["encoder_path"] == "/fake/qwen3/encoder.int8.onnx"
+            assert kwargs["decoder_path"] == "/fake/qwen3/decoder.int8.onnx"
             assert kwargs["tokenizer_path"] == "/fake/qwen3/tokenizer"
             assert kwargs["hotwords"] == "Claude Code"
             assert kwargs["max_total_len"] == 1024
