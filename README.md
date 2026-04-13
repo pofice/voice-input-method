@@ -42,7 +42,7 @@ macOS 用户需要在**系统设置 → 隐私与安全性 → 辅助功能**中
 | 核心业务流水线（录音→识别→后处理→粘贴） | `voice_input_method/engine.py` 的 `VoiceEngine` 类 |
 | 各组件的接口契约 | `voice_input_method/protocols.py` — Protocol 定义 |
 | ASR 识别后端（4 种可选） | `voice_input_method/recognition/` — funasr / sherpa-sensevoice / sherpa-nano / qwen3-asr |
-| 录音怎么做（含运行时切换设备） | `voice_input_method/audio.py` |
+| 录音怎么做（含运行时切换设备、崩溃恢复） | `voice_input_method/audio.py` |
 | 文本后处理（繁简、热词、字母合并、纠错） | `voice_input_method/text_processing.py`、`voice_input_method/hotwords.py` |
 | 长音频 VAD 分段 | `voice_input_method/vad.py` — Silero VAD 自动切段，短音频跳过 |
 | 命令行入口 / 各命令选项 | `voice_input_method/cli.py`，或运行 `voice-input-cli --help` |

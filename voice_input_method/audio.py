@@ -5,6 +5,8 @@ non-recording code paths (CLI, headless tests) don't fail on systems
 without the system-level PortAudio library installed.
 """
 
+import os
+import tempfile
 from typing import TYPE_CHECKING, Any, Callable
 
 import numpy as np
@@ -59,6 +61,12 @@ class AudioRecorder:
         self._on_chunk = on_chunk
         self._chunk_samples_16k = chunk_samples
         self._streaming_buffer: np.ndarray = np.array([], dtype=np.float32)
+
+        # Crash-safe streaming to disk: audio is written to a live WAV file
+        # during recording so data survives process crashes.
+        self._wav_writer: Any = None  # sf.SoundFile in write mode
+        self._live_path = os.path.join(tempfile.gettempdir(), "voice_input_audio_live.wav")
+        self._disk_frames = 0
 
     def start(self):
         """Initialize and start the audio input stream.
@@ -126,12 +134,21 @@ class AudioRecorder:
         if not self.is_recording:
             return
 
-        # Copy because sounddevice reuses the buffer between callbacks.
-        self.buffer.append(indata.copy())
+        # Copy once — sounddevice reuses the buffer between callbacks.
+        chunk = indata.copy()
+        self.buffer.append(chunk)
+
+        # Stream to disk for crash safety
+        if self._wav_writer is not None:
+            try:
+                self._wav_writer.write(chunk)
+                self._disk_frames += frames
+            except Exception:
+                pass  # Don't break recording if disk write fails
 
         # Streaming: resample incoming audio and feed chunks
         if self._on_chunk and self._chunk_samples_16k > 0:
-            resampled = resample_to_16k_mono(indata.copy(), self.sample_rate, self.channels)
+            resampled = resample_to_16k_mono(chunk, self.sample_rate, self.channels)
             self._streaming_buffer = np.concatenate([self._streaming_buffer, resampled])
 
             while len(self._streaming_buffer) >= self._chunk_samples_16k:
@@ -142,7 +159,24 @@ class AudioRecorder:
     def start_recording(self):
         self.buffer = []
         self._streaming_buffer = np.array([], dtype=np.float32)
+        self._disk_frames = 0
+        # Close any leftover writer from a previous session
+        if self._wav_writer is not None:
+            try:
+                self._wav_writer.close()
+            except Exception:
+                pass
+            self._wav_writer = None
         self.is_recording = True
+        # Open a WAV file for streaming writes — crash-safe recording
+        try:
+            self._wav_writer = sf.SoundFile(
+                self._live_path, mode='w',
+                samplerate=self.sample_rate, channels=self.channels,
+            )
+        except Exception as e:
+            print(f"Warning: could not open live WAV writer: {e}")
+            self._wav_writer = None
 
     def _concat_buffer(self) -> np.ndarray:
         """Concatenate accumulated chunk arrays into one array."""
@@ -153,7 +187,22 @@ class AudioRecorder:
     def stop_recording(self, output_path: str) -> str:
         """Stop recording and save to WAV file. Returns the output path."""
         self.is_recording = False
-        if self.buffer:
+        # Close the streaming WAV writer and use the disk file if available
+        disk_ok = False
+        if self._wav_writer is not None:
+            try:
+                self._wav_writer.close()
+            except Exception:
+                pass
+            self._wav_writer = None
+            if self._disk_frames > 0:
+                try:
+                    os.replace(self._live_path, output_path)
+                    disk_ok = True
+                except Exception as e:
+                    print(f"Warning: failed to finalize live recording: {e}")
+        # Fallback: write from memory buffer (original behavior)
+        if not disk_ok and self.buffer:
             data = self._concat_buffer()
             sf.write(output_path, data, self.sample_rate)
         return output_path
@@ -257,6 +306,12 @@ class AudioRecorder:
 
     def stop(self):
         """Stop the audio stream."""
+        if self._wav_writer is not None:
+            try:
+                self._wav_writer.close()
+            except Exception:
+                pass
+            self._wav_writer = None
         if self.stream:
             try:
                 self.stream.stop()

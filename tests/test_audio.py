@@ -1,8 +1,10 @@
 """Tests for audio module — resample function is pure numpy, testable anywhere."""
 
+import os
 from unittest.mock import MagicMock
 
 import numpy as np
+import soundfile as sf
 
 from voice_input_method.audio import AudioRecorder, resample_to_16k_mono
 
@@ -299,3 +301,125 @@ class TestAudioRecorderWithMocks:
         rec = AudioRecorder()
         rec.stream = None
         rec.stop()  # Should not raise
+
+
+class TestStreamingDiskWrite:
+    """Tests for crash-safe streaming-to-disk recording."""
+
+    def test_audio_streams_to_disk_during_recording(self, tmp_path):
+        """Audio data is written to disk in real time, not just at stop."""
+        rec = AudioRecorder(sample_rate=16000, channels=1)
+        rec.start_recording()
+
+        # Simulate 5 audio callbacks
+        for _ in range(5):
+            rec._audio_callback(
+                np.random.randn(1600, 1).astype(np.float32), 1600, None, None
+            )
+
+        assert rec._disk_frames == 8000
+        # Live file should exist with data while still recording
+        assert os.path.exists(rec._live_path)
+
+        output = str(tmp_path / "output.wav")
+        rec.stop_recording(output)
+        assert os.path.exists(output)
+
+        data, sr = sf.read(output)
+        assert sr == 16000
+        assert len(data) == 8000
+
+    def test_crash_recovery_live_file_persists(self):
+        """Live WAV file has data even if stop_recording is never called."""
+        rec = AudioRecorder(sample_rate=16000, channels=1)
+        rec.start_recording()
+        rec._audio_callback(
+            np.ones((1600, 1), dtype=np.float32), 1600, None, None
+        )
+
+        # Simulate crash: close writer manually (OS flushes on process exit)
+        # but never call stop_recording
+        live_path = rec._live_path
+        assert rec._wav_writer is not None
+        rec._wav_writer.close()
+        rec._wav_writer = None
+
+        data, sr = sf.read(live_path)
+        assert sr == 16000
+        assert len(data) == 1600
+
+    def test_fallback_to_buffer_when_no_writer(self, tmp_path):
+        """If disk writer was never initialized, buffer-based save still works."""
+        rec = AudioRecorder(sample_rate=16000, channels=1)
+        # Bypass start_recording — simulate writer init failure
+        rec.is_recording = True
+        rec._wav_writer = None
+        rec._disk_frames = 0
+        rec.buffer = [np.ones(1600, dtype=np.float32)]
+
+        output = str(tmp_path / "fallback.wav")
+        rec.stop_recording(output)
+
+        assert os.path.exists(output)
+        data, sr = sf.read(output)
+        assert len(data) == 1600
+
+    def test_disk_write_coexists_with_streaming(self):
+        """Streaming callbacks still work alongside disk write."""
+        chunks = []
+        rec = AudioRecorder(
+            sample_rate=16000, channels=1,
+            on_chunk=lambda c: chunks.append(c.copy()),
+            chunk_samples=1600,
+        )
+        rec.start_recording()
+        rec._audio_callback(
+            np.zeros((3200, 1), dtype=np.float32), 3200, None, None
+        )
+
+        # Both disk and streaming should have received data
+        assert rec._disk_frames == 3200
+        assert len(chunks) == 2
+
+        # Clean up
+        rec.stop_recording(rec._live_path)
+
+    def test_stereo_streaming_to_disk(self, tmp_path):
+        """Streaming to disk works with stereo recording."""
+        rec = AudioRecorder(sample_rate=44100, channels=2)
+        rec.start_recording()
+
+        stereo_data = np.random.randn(4410, 2).astype(np.float32)
+        rec._audio_callback(stereo_data, 4410, None, None)
+
+        output = str(tmp_path / "stereo.wav")
+        rec.stop_recording(output)
+
+        data, sr = sf.read(output)
+        assert sr == 44100
+        assert data.shape == (4410, 2)
+
+    def test_stop_cleans_up_writer(self):
+        """stop() closes the WAV writer if still open."""
+        rec = AudioRecorder(sample_rate=16000, channels=1)
+        rec.start_recording()
+        assert rec._wav_writer is not None
+
+        rec.stop()
+        assert rec._wav_writer is None
+
+    def test_consecutive_recordings(self, tmp_path):
+        """Multiple start/stop cycles each produce correct output."""
+        rec = AudioRecorder(sample_rate=16000, channels=1)
+
+        for i in range(3):
+            rec.start_recording()
+            samples = (i + 1) * 1600
+            rec._audio_callback(
+                np.ones((samples, 1), dtype=np.float32), samples, None, None
+            )
+            output = str(tmp_path / f"take_{i}.wav")
+            rec.stop_recording(output)
+
+            data, sr = sf.read(output)
+            assert len(data) == samples
