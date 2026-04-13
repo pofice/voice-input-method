@@ -48,6 +48,25 @@ def _create_recognizer(config: Config, hotwords: str = "") -> Recognizer:
             num_threads=4,
         )
 
+    if backend == "sensevoice-lm":
+        if not config.sensevoice_model_path or not config.sensevoice_tokens_path:
+            raise ConfigError(
+                "sensevoice-lm backend requires 'sensevoice_model_path' "
+                "and 'sensevoice_tokens_path' in config"
+            )
+        from .recognition.sensevoice_lm import SenseVoiceLMRecognizer
+        return SenseVoiceLMRecognizer(
+            model_path=config.sensevoice_model_path,
+            tokens_path=config.sensevoice_tokens_path,
+            lm_path=config.sensevoice_lm_path,
+            language=config.sensevoice_language,
+            use_itn=True,
+            num_threads=4,
+            lm_alpha=config.sensevoice_lm_alpha,
+            lm_beta=config.sensevoice_lm_beta,
+            beam_width=config.sensevoice_lm_beam_width,
+        )
+
     if backend == "qwen3-asr":
         if not config.qwen3_model_dir:
             raise ConfigError(

@@ -44,6 +44,12 @@ def _build_config(args: argparse.Namespace) -> Config:
         config.sensevoice_model_path = args.sensevoice_model
     if getattr(args, "sensevoice_tokens", None):
         config.sensevoice_tokens_path = args.sensevoice_tokens
+    if getattr(args, "lm_path", None):
+        config.sensevoice_lm_path = args.lm_path
+    if getattr(args, "lm_alpha", None) is not None:
+        config.sensevoice_lm_alpha = args.lm_alpha
+    if getattr(args, "lm_beta", None) is not None:
+        config.sensevoice_lm_beta = args.lm_beta
     if getattr(args, "nano_model_dir", None):
         config.nano_model_dir = args.nano_model_dir
     if getattr(args, "qwen3_model_dir", None):
@@ -524,7 +530,7 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--config", help="Path to config.yaml (optional)")
         p.add_argument(
             "--backend",
-            choices=["funasr", "sherpa-sensevoice", "sherpa-nano", "qwen3-asr"],
+            choices=["funasr", "sherpa-sensevoice", "sensevoice-lm", "sherpa-nano", "qwen3-asr"],
             help="Recognizer backend (overrides config)",
         )
         p.add_argument(
@@ -534,6 +540,18 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument(
             "--sensevoice-tokens",
             help="Path to SenseVoice tokens.txt (sherpa-sensevoice backend)",
+        )
+        p.add_argument(
+            "--lm-path",
+            help="Path to KenLM .bin/.arpa file (sensevoice-lm backend)",
+        )
+        p.add_argument(
+            "--lm-alpha", type=float,
+            help="LM weight for sensevoice-lm (default: 0.5)",
+        )
+        p.add_argument(
+            "--lm-beta", type=float,
+            help="Word insertion bonus for sensevoice-lm (default: 1.0)",
         )
         p.add_argument(
             "--nano-model-dir",

@@ -41,7 +41,7 @@ macOS 用户需要在**系统设置 → 隐私与安全性 → 辅助功能**中
 | 整体架构如何串起来 | `voice_input_method/factory.py` — 一个文件看完所有依赖装配 |
 | 核心业务流水线（录音→识别→后处理→粘贴） | `voice_input_method/engine.py` 的 `VoiceEngine` 类 |
 | 各组件的接口契约 | `voice_input_method/protocols.py` — Protocol 定义 |
-| ASR 识别后端（4 种可选） | `voice_input_method/recognition/` — funasr / sherpa-sensevoice / sherpa-nano / qwen3-asr |
+| ASR 识别后端（5 种可选） | `voice_input_method/recognition/` — funasr / sherpa-sensevoice / sensevoice-lm / sherpa-nano / qwen3-asr |
 | 录音怎么做（含运行时切换设备、崩溃恢复） | `voice_input_method/audio.py` |
 | 文本后处理（繁简、热词、字母合并、纠错） | `voice_input_method/text_processing.py`、`voice_input_method/hotwords.py` |
 | 长音频 VAD 分段 | `voice_input_method/vad.py` — Silero VAD 自动切段，短音频跳过 |
@@ -205,6 +205,7 @@ streaming 模式额外包含 `"partials": ["片段1", "片段2"]`。
 |------|------|------|------|---------|------|------|
 | `funasr`（默认） | SeacoParaformer | 370MB | ✅ 每次调用 | ❌ | ✅ | 核心依赖 |
 | `sherpa-sensevoice` | SenseVoice-Small | 229MB(int8) | ❌（仅同音字替换 HR） | ✅ 内置 | ❌ | `pip install ".[sherpa]"` |
+| `sensevoice-lm` | SenseVoice + KenLM | 229MB+LM | ❌ | ✅ 内置 | ❌ | `pip install ".[sherpa,lm]"` |
 | `sherpa-nano` | Fun-ASR-Nano (LLM) | ~800MB(int8) | ✅ 加载时烤入 | ✅ 内置 | ❌ | `pip install ".[sherpa]"` |
 | `qwen3-asr` | Qwen3-ASR-0.6B (LLM) | ~500MB(int8) | ✅ 加载时烤入 | ✅ 内置 | ❌ | `pip install ".[sherpa]"` |
 
@@ -242,6 +243,13 @@ voice-input-cli transcribe input.wav \
   --sensevoice-model ./sherpa-onnx-sense-voice-.../model.int8.onnx \
   --sensevoice-tokens ./sherpa-onnx-sense-voice-.../tokens.txt
 
+# sensevoice-lm（同模型 + KenLM 语言模型 rescoring）
+voice-input-cli transcribe input.wav \
+  --backend sensevoice-lm \
+  --sensevoice-model ./sherpa-onnx-sense-voice-.../model.int8.onnx \
+  --sensevoice-tokens ./sherpa-onnx-sense-voice-.../tokens.txt \
+  --lm-path ./models/zh_3gram.bin --lm-alpha 0.5 --lm-beta 1.0
+
 # sherpa-nano（--nano-model-dir 是目录，目录内必须有 encoder_adaptor / llm / embedding / Qwen3-0.6B）
 voice-input-cli transcribe input.wav \
   --backend sherpa-nano \
@@ -270,7 +278,7 @@ voice-input-cli listen --backend qwen3-asr --qwen3-model-dir ./sherpa-onnx-qwen3
 ### config.yaml 切换（GUI 常驻）
 
 ```yaml
-recognizer_backend: sherpa-nano   # funasr / sherpa-sensevoice / sherpa-nano / qwen3-asr
+recognizer_backend: sherpa-nano   # funasr / sherpa-sensevoice / sensevoice-lm / sherpa-nano / qwen3-asr
 
 # sherpa-sensevoice 字段（仅在该后端下生效）
 sensevoice_model_path: "/abs/path/model.int8.onnx"

@@ -1,9 +1,10 @@
 # Voice Input Method Configuration
 # Copy this file and edit to match your setup.
 
-# Recognizer backend: "funasr", "sherpa-sensevoice", "sherpa-nano", "qwen3-asr"
+# Recognizer backend: "funasr", "sherpa-sensevoice", "sensevoice-lm", "sherpa-nano", "qwen3-asr"
 # funasr: default, fast ONNX inference, supports hotwords and streaming
 # sherpa-sensevoice: built-in punctuation + ITN, small model (229MB int8)
+# sensevoice-lm: SenseVoice CTC + KenLM rescoring, better accuracy than greedy decode
 # sherpa-nano: LLM-based, best accuracy for dialects/accents, requires sherpa-onnx
 # qwen3-asr: LLM-based, 52 languages + 22 Chinese dialects, SOTA accuracy, requires sherpa-onnx
 recognizer_backend: sherpa-nano
@@ -25,6 +26,15 @@ quantize: true
 sensevoice_model_path: ""   # e.g. /path/to/sherpa-onnx-sense-voice-.../model.int8.onnx
 sensevoice_tokens_path: ""  # e.g. /path/to/sherpa-onnx-sense-voice-.../tokens.txt
 sensevoice_language: "zh"   # zh / en / ja / ko / yue
+
+# --- sensevoice-lm backend (only used when recognizer_backend="sensevoice-lm") ---
+# Uses the same model/tokens as sherpa-sensevoice, plus a KenLM language model
+# for CTC beam search rescoring. Better accuracy for Chinese text.
+# pip install pyctcdecode kenlm
+sensevoice_lm_path: ""         # path to KenLM .bin or .arpa file (empty = no LM, pure beam search)
+sensevoice_lm_alpha: 0.5      # LM weight (0 = ignore LM, 1 = strong LM influence)
+sensevoice_lm_beta: 1.0       # word insertion bonus (higher = fewer deletions)
+sensevoice_lm_beam_width: 20  # beam search width (higher = slower but potentially better)
 
 # --- sherpa-nano backend path (only used when recognizer_backend="sherpa-nano") ---
 # Directory must contain encoder_adaptor.int8.onnx, llm.int8.onnx, embedding.int8.onnx, Qwen3-0.6B/

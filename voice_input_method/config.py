@@ -27,13 +27,20 @@ class Config:
     sample_rate: int = 44100
     channels: int = 2
 
-    # Recognizer backend: "funasr", "sherpa-sensevoice", "sherpa-nano", "qwen3-asr"
+    # Recognizer backend: "funasr", "sherpa-sensevoice", "sensevoice-lm", "sherpa-nano", "qwen3-asr"
     recognizer_backend: str = "funasr"
 
     # sherpa-sensevoice backend paths (required when recognizer_backend="sherpa-sensevoice")
     sensevoice_model_path: str = ""   # path to model.int8.onnx
     sensevoice_tokens_path: str = ""  # path to tokens.txt
     sensevoice_language: str = "zh"
+
+    # sensevoice-lm backend (SenseVoice CTC + KenLM rescoring)
+    # Uses same model/tokens as sherpa-sensevoice, plus a KenLM language model
+    sensevoice_lm_path: str = ""      # path to KenLM .bin or .arpa file
+    sensevoice_lm_alpha: float = 0.5  # LM weight (higher = trust LM more)
+    sensevoice_lm_beta: float = 1.0   # word insertion bonus
+    sensevoice_lm_beam_width: int = 20  # beam search width
 
     # sherpa-nano backend paths (required when recognizer_backend="sherpa-nano")
     nano_model_dir: str = ""          # dir containing encoder_adaptor/llm/embedding/tokenizer
