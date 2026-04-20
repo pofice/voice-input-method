@@ -433,6 +433,10 @@ python tools/rime_ice2hotwords.py /path/to/rime_ice.userdb.txt -o hotwords.txt
 | `RuntimeWarning: streaming is only supported with funasr` | `streaming: true` 配了非 funasr 后端 | streaming 自动被禁用，改用 `funasr` 或关掉 `streaming` |
 | 模型下载卡住 / 超时 | ModelScope CDN 不稳 | 设 `MODELSCOPE_CACHE` 环境变量指定缓存目录，或手动下载到 `~/.cache/modelscope/` |
 
+## License
+
+This project is licensed under the GNU General Public License v3.0 or later — see [LICENSE](./LICENSE).
+
 ## 致谢
 
 - [FunASR](https://github.com/alibaba-damo-academy/FunASR) — 阿里达摩院语音识别框架

@@ -7,7 +7,7 @@ name = "voice-input-method"
 version = "3.1.0"
 description = "FunASR-based low-latency voice input method"
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "GPL-3.0-or-later"}
 requires-python = ">=3.10"
 dependencies = [
     "funasr-onnx>=0.3",
