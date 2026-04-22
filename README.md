@@ -250,6 +250,11 @@ voice-input-cli transcribe input.wav \
   --sensevoice-tokens ./sherpa-onnx-sense-voice-.../tokens.txt \
   --lm-path ./models/zh_3gram.bin --lm-alpha 0.5 --lm-beta 1.0
 
+# sensevoice-lm 参数说明：
+#   --lm-alpha  LM 权重（0=忽略 LM, 1=强 LM 影响，默认 0.5）
+#   --lm-beta   词插入奖励（越大越不容易漏字，默认 1.0）
+#   config.yaml 中对应 sensevoice_lm_beam_width 控制 beam 宽度（默认 20）
+
 # sherpa-nano（--nano-model-dir 是目录，目录内必须有 encoder_adaptor / llm / embedding / Qwen3-0.6B）
 voice-input-cli transcribe input.wav \
   --backend sherpa-nano \
@@ -297,6 +302,90 @@ qwen3_max_new_tokens: 128    # 最大输出 token 数，长音频调大（如 25
 ```
 
 切换 sherpa 后端时，缺必填字段会立刻抛出 `ConfigError`，错误消息会指出缺哪个字段。`streaming: true` 只对 `funasr` 生效，配合 sherpa 后端会发 `RuntimeWarning` 并自动禁用。
+
+### KenLM 语言模型训练
+
+`sensevoice-lm` 后端使用 KenLM 做 CTC beam search rescoring，能显著提升中文识别准确率（尤其是专业术语、人名、公司名）。项目自带一个 50KB 种子 LM（`models/zh_3gram.bin`），效果有限——用自己的语料训一个大模型效果会好很多。
+
+#### 第一步：安装 KenLM 命令行工具
+
+```bash
+# macOS
+brew install kenlm
+
+# Ubuntu / Debian
+sudo apt-get install -y build-essential cmake libboost-all-dev zlib1g-dev libbz2-dev liblzma-dev
+git clone https://github.com/kpu/kenlm.git
+cd kenlm && mkdir build && cd build
+cmake .. && make -j4
+# 编译产物在 build/bin/lmplz 和 build/bin/build_binary
+```
+
+#### 第二步：准备分词语料
+
+KenLM 需要分好词的纯文本，一行一句，词之间用空格隔开：
+
+```
+雷石 天地 电子 技术
+Claude Code 是 一个 编程 工具
+语音 输入法 比 闪电说 更快
+```
+
+用 jieba 对原始文本分词：
+
+```python
+import jieba
+
+# 可选：加载自定义词典，确保专有名词不被切碎
+# jieba.load_userdict("my_dict.txt")  # 格式：每行 "词 词频 词性"
+
+with open("raw_corpus.txt") as f, open("corpus.txt", "w") as out:
+    for line in f:
+        text = line.strip()
+        if text:
+            out.write(" ".join(jieba.cut(text)) + "\n")
+```
+
+**语料来源建议**（按价值排序）：
+1. 你自己的语音输入历史、聊天记录（最有价值，个性化效果最强）
+2. 公司内部文档、会议纪要（领域术语覆盖）
+3. 通用中文语料：[维基百科中文](https://dumps.wikimedia.org/zhwiki/)、新闻语料（兜底通用覆盖）
+
+语料量参考：几万行起步就有效果，几十万行明显提升，百万行以上接近天花板。
+
+#### 第三步：训练 ARPA 模型并转二进制
+
+```bash
+# 训练 3-gram 模型（推荐起步，平衡精度和体积）
+lmplz -o 3 --text corpus.txt --arpa zh_3gram.arpa
+
+# 转成二进制格式（加载速度快 5-10 倍）
+build_binary zh_3gram.arpa zh_3gram.bin
+```
+
+参数说明：
+- `-o 3`：3-gram（考虑前 3 个词的上下文），`-o 5` 更准但模型更大
+- 10 万行语料 → 约 5-20MB 的 .bin；百万行 → 约 50-200MB
+
+#### 第四步：配置使用
+
+```yaml
+# config.yaml
+recognizer_backend: sensevoice-lm
+sensevoice_lm_path: models/zh_3gram.bin   # 指向你训练出的 .bin 或 .arpa 文件
+sensevoice_lm_alpha: 0.5                  # LM 权重，0.3-0.8 之间调
+sensevoice_lm_beta: 1.0                   # 词插入奖励，0.5-2.0 之间调
+sensevoice_lm_beam_width: 20              # beam 宽度，越大越慢但可能更准
+```
+
+或 CLI 一次性指定：
+```bash
+voice-input-cli transcribe input.wav --backend sensevoice-lm --lm-path ./models/zh_3gram.bin
+```
+
+#### 持续迭代
+
+定期把新的语音输入历史追加到 `corpus.txt`，重新跑 `lmplz` + `build_binary` 即可。模型会越来越懂你的用词习惯。
 
 ### VAD 长音频分段
 
