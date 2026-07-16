@@ -106,6 +106,19 @@ def _create_recognizer(config: Config, hotwords: str = "") -> Recognizer:
             user_prompt=config.nano_user_prompt,
         )
 
+    if backend == "remote-mimo":
+        if not config.mimo_base_url:
+            raise ConfigError(
+                "remote-mimo backend requires 'mimo_base_url' in config "
+                "(MiMo-V2.5-ASR Gradio server, e.g. http://192.168.192.118:7898)"
+            )
+        from .recognition.remote_mimo import RemoteMiMoRecognizer
+        return RemoteMiMoRecognizer(
+            base_url=config.mimo_base_url,
+            language=config.mimo_language,
+            timeout=config.mimo_timeout,
+        )
+
     if backend != "funasr":
         raise ConfigError(f"unknown recognizer_backend: {backend!r}")
 

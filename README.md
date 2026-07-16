@@ -41,7 +41,7 @@ macOS 用户需要在**系统设置 → 隐私与安全性 → 辅助功能**中
 | 整体架构如何串起来 | `voice_input_method/factory.py` — 一个文件看完所有依赖装配 |
 | 核心业务流水线（录音→识别→后处理→粘贴） | `voice_input_method/engine.py` 的 `VoiceEngine` 类 |
 | 各组件的接口契约 | `voice_input_method/protocols.py` — Protocol 定义 |
-| ASR 识别后端（5 种可选） | `voice_input_method/recognition/` — funasr / sherpa-sensevoice / sensevoice-lm / sherpa-nano / qwen3-asr |
+| ASR 识别后端（6 种可选） | `voice_input_method/recognition/` — funasr / sherpa-sensevoice / sensevoice-lm / sherpa-nano / qwen3-asr / remote-mimo |
 | 录音怎么做（含运行时切换设备、崩溃恢复） | `voice_input_method/audio.py` |
 | 文本后处理（繁简、热词、字母合并、纠错） | `voice_input_method/text_processing.py`、`voice_input_method/hotwords.py` |
 | 长音频 VAD 分段 | `voice_input_method/vad.py` — Silero VAD 自动切段，短音频跳过 |
@@ -208,7 +208,10 @@ streaming 模式额外包含 `"partials": ["片段1", "片段2"]`。
 | `sensevoice-lm` | SenseVoice + KenLM | 229MB+LM | ❌ | ✅ 内置 | ❌ | `pip install ".[sherpa,lm]"` |
 | `sherpa-nano` | Fun-ASR-Nano (LLM) | ~800MB(int8) | ✅ 加载时烤入 | ✅ 内置 | ❌ | `pip install ".[sherpa]"` |
 | `qwen3-asr` | Qwen3-ASR-0.6B (LLM) | ~500MB(int8) | ✅ 加载时烤入 | ✅ 内置 | ❌ | `pip install ".[sherpa]"` |
+| `remote-mimo` | MiMo-V2.5-ASR 16B（远程 GPU） | 0（服务端推理） | ❌（仅同音字替换 HR） | ✅ 内置 | ❌ | 无额外依赖 |
 
+> **remote-mimo**：把识别卸载到局域网内跑 [MiMo-V2.5-ASR](https://github.com/XiaomiMiMo/MiMo-V2.5-ASR) Gradio 服务的 GPU 机器上，本地零模型零依赖（纯 stdlib HTTP）。16B LLM 精度显著高于本地小模型，方言/嘈杂/中英混说场景尤佳；代价是依赖网络（局域网实测一句话全链路 <1s）。客户端会无视 `HTTP(S)_PROXY` 环境变量直连服务器。
+>
 > **热词差异**：`funasr` 每次 transcribe 都接受新热词；`sherpa-nano` 和 `qwen3-asr` 把热词烤进构造函数，修改 `hotwords.txt` 后必须重启程序才生效。LLM 后端（`sherpa-nano`、`qwen3-asr`）还支持自定义 LLM 提示词，可以塞业务上下文比硬编热词更灵活。
 >
 > **长音频注意**：`funasr` 和 `sherpa-sensevoice` 无长度限制。`sherpa-nano` 和 `qwen3-asr` 是 LLM 架构，有 KV cache 长度限制（默认 `max_total_len=512`）。长音频（>30s）建议使用 `funasr` 或 `sherpa-sensevoice`，或配合 VAD 分段。`qwen3-asr` 的 `max_total_len` 可运行时调大。
@@ -264,6 +267,11 @@ voice-input-cli transcribe input.wav \
 voice-input-cli transcribe input.wav \
   --backend qwen3-asr \
   --qwen3-model-dir ./sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25
+
+# remote-mimo（远程 MiMo-V2.5-ASR Gradio 服务，本地无模型）
+voice-input-cli transcribe input.wav \
+  --backend remote-mimo \
+  --mimo-base-url http://192.168.192.118:7898
 
 # qwen3-asr 长音频（调大 KV cache 和输出 token 限制）
 voice-input-cli transcribe long_audio.wav \

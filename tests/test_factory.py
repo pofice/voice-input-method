@@ -149,6 +149,36 @@ class TestCreateRecognizerQwen3ASR:
             assert kwargs["hotwords"] == ""
 
 
+class TestCreateRecognizerRemoteMimo:
+    def test_remote_mimo_passes_all_params(self):
+        config = Config(
+            recognizer_backend="remote-mimo",
+            mimo_base_url="http://192.168.192.118:7898",
+            mimo_language="Chinese",
+            mimo_timeout=30.0,
+        )
+        with patch(
+            "voice_input_method.recognition.remote_mimo.RemoteMiMoRecognizer"
+        ) as MockRec:
+            _create_recognizer(config)
+            MockRec.assert_called_once()
+            kwargs = MockRec.call_args.kwargs
+            assert kwargs["base_url"] == "http://192.168.192.118:7898"
+            assert kwargs["language"] == "Chinese"
+            assert kwargs["timeout"] == 30.0
+
+    def test_remote_mimo_missing_base_url(self):
+        config = Config(recognizer_backend="remote-mimo")
+        with pytest.raises(ConfigError, match="mimo_base_url"):
+            _create_recognizer(config)
+
+    def test_remote_mimo_satisfies_recognizer_protocol(self):
+        from voice_input_method.protocols import Recognizer
+        from voice_input_method.recognition.remote_mimo import RemoteMiMoRecognizer
+        rec = RemoteMiMoRecognizer(base_url="http://fake:1")
+        assert isinstance(rec, Recognizer)
+
+
 class TestCreateRecognizerSenseVoice:
     """Test sensevoice recognizer construction (mocked import)."""
 

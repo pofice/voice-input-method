@@ -27,7 +27,8 @@ class Config:
     sample_rate: int = 44100
     channels: int = 2
 
-    # Recognizer backend: "funasr", "sherpa-sensevoice", "sensevoice-lm", "sherpa-nano", "qwen3-asr"
+    # Recognizer backend: "funasr", "sherpa-sensevoice", "sensevoice-lm",
+    # "sherpa-nano", "qwen3-asr", "remote-mimo"
     recognizer_backend: str = "funasr"
 
     # sherpa-sensevoice backend paths (required when recognizer_backend="sherpa-sensevoice")
@@ -52,6 +53,11 @@ class Config:
     qwen3_model_dir: str = ""    # dir containing conv_frontend/encoder/decoder/tokenizer
     qwen3_max_total_len: int = 512   # KV cache length (increase for longer audio)
     qwen3_max_new_tokens: int = 128  # max output tokens (increase for longer audio)
+
+    # remote-mimo backend (required when recognizer_backend="remote-mimo")
+    mimo_base_url: str = ""      # MiMo-V2.5-ASR Gradio server, e.g. http://192.168.192.118:7898
+    mimo_language: str = "Auto"  # Auto / Chinese / English
+    mimo_timeout: float = 60.0   # per-request HTTP timeout in seconds
 
     # Hotkey
     hotkey: str = "scroll_lock"

@@ -58,6 +58,10 @@ def _build_config(args: argparse.Namespace) -> Config:
         config.qwen3_max_total_len = args.qwen3_max_total_len
     if getattr(args, "qwen3_max_new_tokens", None):
         config.qwen3_max_new_tokens = args.qwen3_max_new_tokens
+    if getattr(args, "mimo_base_url", None):
+        config.mimo_base_url = args.mimo_base_url
+    if getattr(args, "mimo_language", None):
+        config.mimo_language = args.mimo_language
     return config
 
 
@@ -530,7 +534,7 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--config", help="Path to config.yaml (optional)")
         p.add_argument(
             "--backend",
-            choices=["funasr", "sherpa-sensevoice", "sensevoice-lm", "sherpa-nano", "qwen3-asr"],
+            choices=["funasr", "sherpa-sensevoice", "sensevoice-lm", "sherpa-nano", "qwen3-asr", "remote-mimo"],
             help="Recognizer backend (overrides config)",
         )
         p.add_argument(
@@ -568,6 +572,15 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument(
             "--qwen3-max-new-tokens", type=int,
             help="Max output tokens for qwen3-asr (default: 128, increase for longer audio)",
+        )
+        p.add_argument(
+            "--mimo-base-url",
+            help="MiMo-V2.5-ASR Gradio server URL (remote-mimo backend)",
+        )
+        p.add_argument(
+            "--mimo-language",
+            choices=["Auto", "Chinese", "English"],
+            help="Language tag for remote-mimo (default: Auto)",
         )
 
     # transcribe

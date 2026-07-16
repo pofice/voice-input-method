@@ -1,7 +1,7 @@
 # Voice Input Method Configuration
 # Copy this file and edit to match your setup.
 
-# Recognizer backend: "funasr", "sherpa-sensevoice", "sensevoice-lm", "sherpa-nano", "qwen3-asr"
+# Recognizer backend: "funasr", "sherpa-sensevoice", "sensevoice-lm", "sherpa-nano", "qwen3-asr", "remote-mimo"
 # funasr: default, fast ONNX inference, supports hotwords and streaming
 # sherpa-sensevoice: built-in punctuation + ITN, small model (229MB int8)
 # sensevoice-lm: SenseVoice CTC + KenLM rescoring, better accuracy than greedy decode
@@ -52,6 +52,14 @@ qwen3_model_dir: ""
 qwen3_max_total_len: 512
 # Max output tokens: increase for longer audio (128 ≈ 80 chars, 512 ≈ 300 chars)
 qwen3_max_new_tokens: 128
+
+# --- remote-mimo backend (only used when recognizer_backend="remote-mimo") ---
+# Offloads ASR to a MiMo-V2.5-ASR Gradio server on the LAN (16B model, SOTA
+# accuracy for Chinese/dialects/noisy audio). No local model or extra deps.
+# Server setup: https://github.com/XiaomiMiMo/MiMo-V2.5-ASR (run_mimo_asr.py)
+mimo_base_url: ""       # e.g. http://192.168.1.100:7898
+mimo_language: "Auto"   # Auto / Chinese / English
+mimo_timeout: 60.0      # per-request HTTP timeout in seconds
 
 # Audio recording
 sample_rate: 44100
