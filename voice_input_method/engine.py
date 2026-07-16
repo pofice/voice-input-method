@@ -8,9 +8,12 @@ so the whole pipeline can be tested with lightweight mocks.
 from __future__ import annotations
 
 import os
+import shutil
 import tempfile
 import threading
 from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
 from typing import Callable
 
 import numpy as np
@@ -28,6 +31,39 @@ from .protocols import (
     TextPaster,
 )
 from .text_processing import apply_corrections, clean_spaces, strip_trailing_punctuation
+
+
+def archive_recording_audio(
+    audio_src: str | Path,
+    duration: int,
+    save_dir: Path | None = None,
+) -> Path | None:
+    """Copy the just-finished recording into *save_dir* with a timestamped name.
+
+    Must be called at stop time, BEFORE transcription: the temp recording
+    file has a fixed name and is overwritten by the next recording, so
+    saving only after a successful transcription loses the audio whenever
+    the recognizer fails (e.g. remote backend with the network down).
+
+    Returns the archive base path (without suffix) for the paired .txt,
+    or None if the source file does not exist.
+    """
+    src = Path(audio_src)
+    if not src.exists():
+        return None
+    save_dir = save_dir or (Path.home() / "voice-recordings")
+    save_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    base = save_dir / f"{ts}_{duration}s"
+    shutil.copy2(str(src), str(base.with_suffix(".wav")))
+    return base
+
+
+def archive_recording_text(base: Path | None, text: str) -> None:
+    """Write the transcription next to a previously archived recording."""
+    if base is None or not text.strip():
+        return
+    base.with_suffix(".txt").write_text(text, encoding="utf-8")
 
 
 @dataclass

@@ -6,16 +6,14 @@ Hotkey listening lives in hotkey.py.
 This file only handles PySide6 widgets and signals.
 """
 
-import shutil
 import time
-from datetime import datetime
-from pathlib import Path
 
 from PySide6.QtCore import QEvent, QPointF, Qt, Signal
 from PySide6.QtGui import QIcon, QMouseEvent
 from PySide6.QtWidgets import QApplication, QMenu, QPushButton, QTextEdit, QWidget
 
 from .config import Config, resolve_resource_path
+from .engine import archive_recording_audio, archive_recording_text
 from .factory import create_engine, create_indicator
 from .hotkey import CombinedHotkeyListener
 
@@ -110,7 +108,7 @@ class MainWindow(QWidget):
 
         # Combined hotkey listener (single pynput Listener for both modes)
         self._long_record_start = None
-        self._pending_long_save_duration = None
+        self._pending_long_save_base = None
         self._hotkey = CombinedHotkeyListener(
             hold_hotkey=config.hotkey,
             hold_on_press=lambda: self.button.simulatePress(),
@@ -236,33 +234,21 @@ class MainWindow(QWidget):
         self._update_long_record_style()
         self.engine.stop_recording()
         self._indicator.hide()
-        # Save transcription + audio to file after result callback fires
-        self._pending_long_save_duration = duration
+        # Archive the audio NOW — before transcription, which can fail
+        # (remote backend + network down) and must never lose the recording.
+        self._pending_long_save_base = archive_recording_audio(
+            self.engine._audio_path, duration
+        )
+        if self._pending_long_save_base is not None:
+            print(f"Long recording audio saved: {self._pending_long_save_base}.wav")
 
     def _on_transcription(self, text: str):
         self.textEdit.setText(text)
-        # Save long recording result to file
-        if hasattr(self, "_pending_long_save_duration") and self._pending_long_save_duration is not None:
-            self._save_long_recording(text, self._pending_long_save_duration)
-            self._pending_long_save_duration = None
-
-    def _save_long_recording(self, text: str, duration: int):
-        """Save transcription and audio to ~/voice-recordings/"""
-        if not text.strip():
-            return
-        save_dir = Path.home() / "voice-recordings"
-        save_dir.mkdir(exist_ok=True)
-        ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        base = f"{ts}_{duration}s"
-        # Save transcript
-        txt_path = save_dir / f"{base}.txt"
-        txt_path.write_text(text, encoding="utf-8")
-        # Save original audio
-        audio_src = Path(self.engine._audio_path)
-        if audio_src.exists():
-            wav_path = save_dir / f"{base}.wav"
-            shutil.copy2(str(audio_src), str(wav_path))
-        print(f"Long recording saved: {save_dir / base}.*")
+        # Pair the transcript with the already-archived audio
+        if getattr(self, "_pending_long_save_base", None) is not None:
+            archive_recording_text(self._pending_long_save_base, text)
+            print(f"Long recording transcript saved: {self._pending_long_save_base}.txt")
+            self._pending_long_save_base = None
 
     # --- UI callbacks ---
 
