@@ -494,7 +494,7 @@ recognizer = _create_recognizer(config)
 | 平台 | 输入方式 | 全局热键 | 注意事项 |
 |------|---------|---------|---------|
 | Linux X11 | 剪贴板 + Ctrl+V | pynput | 默认 |
-| Linux Wayland | xdotool 逐字输入 | **evdev** | 需安装 xdotool；热键需加入 `input` 组 |
+| Linux Wayland | 剪贴板 + Ctrl+V（ydotool） | **evdev** | 需安装 ydotool 并加入 `input` 组 |
 | Windows | 剪贴板 + Ctrl+V | pynput | |
 | macOS | 剪贴板 + Cmd+V | pynput | 需授予辅助功能和麦克风权限 |
 
@@ -505,6 +505,15 @@ sudo usermod -aG input $USER   # 之后需重新登录
 ```
 
 后端可用 `config.yaml` 的 `hotkey_backend` 覆盖（`auto` / `pynput` / `evdev`）。未加入 `input` 组时热键不可用，但 GUI 按钮仍可正常录音。
+
+**Wayland 文字输入**：同理，XTEST 在 Wayland 下不可用，xdotool/pynput 的按键只能送达 XWayland 客户端。改用 ydotool 经内核 uinput 注入，合成器会当作真实键盘处理，对原生 Wayland 应用同样有效：
+
+```shell
+sudo apt install ydotool
+systemctl --user enable --now ydotool   # 守护进程，同样依赖 input 组
+```
+
+实现见 `voice_input_method/platform/wayland.py`，`check_permissions()` 会在缺少守护进程或权限时给出具体命令。
 
 各平台的具体实现在 `voice_input_method/platform/{x11,wayland,windows,macos}.py`，每个文件不到 30 行。加新平台只需要继承 `PlatformBackend` 并在 `platform/__init__.py:get_backend()` 注册。
 
