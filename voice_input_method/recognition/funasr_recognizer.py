@@ -35,6 +35,10 @@ class FunASRRecognizer:
         from funasr_onnx import SeacoParaformer
         model_dir = _resolve_model_dir(self.model_dir)
         self.model = SeacoParaformer(model_dir, batch_size=1, quantize=self.quantize)
+        # funasr-onnx 0.4.1 的 SeacoParaformer.__call__ 会读 self.language，
+        # 但 __init__ 从未设置该属性，导致 AttributeError。补一个默认值。
+        if not hasattr(self.model, "language"):
+            self.model.language = "zh"
 
     def warmup(self, warmup_wav: str, hotwords: str = "") -> None:
         if self.model is None or not warmup_wav:
