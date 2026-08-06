@@ -138,3 +138,58 @@ class MockIndicator:
 
     def shutdown(self) -> None:
         self.shutdown_called = True
+
+
+class MockHotkeyListener:
+    """Fake hotkey listener that records lifecycle calls and can fire hotkeys."""
+
+    def __init__(
+        self,
+        hold_hotkey: str = "f6",
+        hold_on_press=None,
+        hold_on_release=None,
+        toggle_hotkey=None,
+        toggle_on_start=None,
+        toggle_on_stop=None,
+    ):
+        self.hold_hotkey = hold_hotkey
+        self.toggle_hotkey = toggle_hotkey
+        self._hold_on_press = hold_on_press
+        self._hold_on_release = hold_on_release
+        self._toggle_on_start = toggle_on_start
+        self._toggle_on_stop = toggle_on_stop
+        self.started = False
+        self.stopped = False
+        self._hold_pressed = False
+        self._toggle_recording = False
+
+    def start(self) -> None:
+        self.started = True
+
+    def stop(self) -> None:
+        self.stopped = True
+
+    @property
+    def hold_pressed(self) -> bool:
+        return self._hold_pressed
+
+    @property
+    def toggle_recording(self) -> bool:
+        return self._toggle_recording
+
+    # -- test helpers: simulate key events --------------------------------
+    def fire_hold_press(self) -> None:
+        self._hold_pressed = True
+        if self._hold_on_press:
+            self._hold_on_press()
+
+    def fire_hold_release(self) -> None:
+        self._hold_pressed = False
+        if self._hold_on_release:
+            self._hold_on_release()
+
+    def fire_toggle(self) -> None:
+        self._toggle_recording = not self._toggle_recording
+        cb = self._toggle_on_start if self._toggle_recording else self._toggle_on_stop
+        if cb:
+            cb()

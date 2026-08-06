@@ -55,6 +55,7 @@ macOS 用户需要在**系统设置 → 隐私与安全性 → 辅助功能**中
 | 默认模型 ID | `voice_input_method/config.py` 的 `DEFAULT_OFFLINE_MODELS` / `DEFAULT_STREAMING_MODEL` |
 | 平台后端如何加新平台 | `voice_input_method/platform/base.py` 的 `PlatformBackend` ABC，然后参考 `x11.py`/`macos.py` 等 |
 | 热键配置和 toggle 模式 | `voice_input_method/hotkey.py` — `CombinedHotkeyListener` 在一个 Listener 里处理两个热键 |
+| Wayland 下热键为何要用 evdev | `voice_input_method/hotkey_evdev.py` — 直接读 `/dev/input`，需加入 `input` 组 |
 | AI 开发规范和提交规范 | `CLAUDE.md` — 架构约束、变更同步清单、新增后端步骤（非 Claude Code 用户也应读） |
 
 **架构原则**（这一段不会变，可以信赖）：
@@ -490,12 +491,20 @@ recognizer = _create_recognizer(config)
 
 ## 平台
 
-| 平台 | 输入方式 | 注意事项 |
-|------|---------|---------|
-| Linux X11 | 剪贴板 + Ctrl+V | 默认 |
-| Linux Wayland | xdotool 逐字输入 | 需安装 xdotool |
-| Windows | 剪贴板 + Ctrl+V | |
-| macOS | 剪贴板 + Cmd+V | 需授予辅助功能和麦克风权限 |
+| 平台 | 输入方式 | 全局热键 | 注意事项 |
+|------|---------|---------|---------|
+| Linux X11 | 剪贴板 + Ctrl+V | pynput | 默认 |
+| Linux Wayland | xdotool 逐字输入 | **evdev** | 需安装 xdotool；热键需加入 `input` 组 |
+| Windows | 剪贴板 + Ctrl+V | pynput | |
+| macOS | 剪贴板 + Cmd+V | pynput | 需授予辅助功能和麦克风权限 |
+
+**Wayland 全局热键**：Wayland 不允许应用监听未获焦点的按键，pynput 的 X11 后端只能收到 XWayland 窗口里的按键，热键会静默失效。因此 Wayland 下默认改用 evdev 直接读 `/dev/input`：
+
+```shell
+sudo usermod -aG input $USER   # 之后需重新登录
+```
+
+后端可用 `config.yaml` 的 `hotkey_backend` 覆盖（`auto` / `pynput` / `evdev`）。未加入 `input` 组时热键不可用，但 GUI 按钮仍可正常录音。
 
 各平台的具体实现在 `voice_input_method/platform/{x11,wayland,windows,macos}.py`，每个文件不到 30 行。加新平台只需要继承 `PlatformBackend` 并在 `platform/__init__.py:get_backend()` 注册。
 

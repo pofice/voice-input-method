@@ -62,6 +62,9 @@ class Config:
     # Hotkey
     hotkey: str = "scroll_lock"
     toggle_hotkey: str = ""  # Toggle mode: press once to start, again to stop (e.g. "alt")
+    # Backend: "auto" | "pynput" | "evdev".
+    # auto → evdev on Wayland (pynput can't see global keys there), pynput elsewhere.
+    hotkey_backend: str = "auto"
 
     # UI
     window_title: str = "Rtxime"

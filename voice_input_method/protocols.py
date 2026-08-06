@@ -113,3 +113,31 @@ class RecordingIndicator(Protocol):
     def shutdown(self) -> None:
         """Release resources."""
         ...
+
+
+@runtime_checkable
+class HotkeyListenerProto(Protocol):
+    """Listens for global hotkeys (hold mode + optional toggle mode).
+
+    Implementations differ by how they tap the keyboard:
+      - pynput (X11/macOS/Windows): userspace, no extra permission
+      - evdev (Linux/Wayland): reads /dev/input directly, needs `input` group
+    """
+
+    def start(self) -> None:
+        """Begin listening. Must not block the caller."""
+        ...
+
+    def stop(self) -> None:
+        """Stop listening and release resources."""
+        ...
+
+    @property
+    def hold_pressed(self) -> bool:
+        """True while the hold hotkey is held down."""
+        ...
+
+    @property
+    def toggle_recording(self) -> bool:
+        """True while a toggle-mode recording is active."""
+        ...

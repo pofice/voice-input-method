@@ -1,6 +1,7 @@
 """Tests that mock objects satisfy Protocol contracts at runtime."""
 
 from tests.mocks import (
+    MockHotkeyListener,
     MockHotwordProvider,
     MockIndicator,
     MockPaster,
@@ -10,6 +11,7 @@ from tests.mocks import (
 )
 from voice_input_method.protocols import (
     AudioSource,
+    HotkeyListenerProto,
     HotwordProvider,
     Recognizer,
     RecordingIndicator,
@@ -40,3 +42,7 @@ def test_mock_hotword_satisfies_hotword_provider():
 
 def test_mock_indicator_satisfies_recording_indicator():
     assert isinstance(MockIndicator(), RecordingIndicator)
+
+
+def test_mock_hotkey_satisfies_hotkey_listener():
+    assert isinstance(MockHotkeyListener(), HotkeyListenerProto)

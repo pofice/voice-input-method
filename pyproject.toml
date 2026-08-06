@@ -23,6 +23,7 @@ dependencies = [
 gui = ["PySide6>=6.5", "pynput>=1.7"]
 macos = ["pyobjc-framework-ApplicationServices", "pyobjc-framework-Cocoa"]
 sherpa = ["sherpa-onnx>=1.12"]
+linux = ["evdev>=1.6"]  # evdev hotkey backend (required on Wayland)
 lm = ["pyctcdecode>=0.5", "kenlm>=0.3", "kaldi-native-fbank>=1.22"]
 dev = ["pytest", "pytest-cov", "ruff"]
 integration = ["pytest", "edge-tts", "librosa", "jieba", "modelscope", "torch"]

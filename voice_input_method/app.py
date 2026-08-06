@@ -14,8 +14,7 @@ from PySide6.QtWidgets import QApplication, QMenu, QPushButton, QTextEdit, QWidg
 
 from .config import Config, resolve_resource_path
 from .engine import archive_recording_audio, archive_recording_text
-from .factory import create_engine, create_indicator
-from .hotkey import CombinedHotkeyListener
+from .factory import create_engine, create_hotkey_listener, create_indicator
 
 
 class InputButton(QPushButton):
@@ -106,18 +105,21 @@ class MainWindow(QWidget):
         # Recording indicator (macOS: native AppKit, others: no-op)
         self._indicator = create_indicator(config.platform)
 
-        # Combined hotkey listener (single pynput Listener for both modes)
+        # Hotkey listener — backend chosen by factory (evdev on Wayland, else pynput)
         self._long_record_start = None
         self._pending_long_save_base = None
-        self._hotkey = CombinedHotkeyListener(
-            hold_hotkey=config.hotkey,
+        self._hotkey = create_hotkey_listener(
+            config,
             hold_on_press=lambda: self.button.simulatePress(),
             hold_on_release=lambda: self.button.simulateRelease(),
-            toggle_hotkey=config.toggle_hotkey or None,
             toggle_on_start=self._on_long_record_start,
             toggle_on_stop=self._on_long_record_stop,
         )
-        self._hotkey.start()
+        try:
+            self._hotkey.start()
+        except PermissionError as e:
+            # evdev needs the `input` group; the GUI button still works without it
+            print(f"[hotkey] 全局热键不可用: {e}")
 
         # Start hotword file watcher (Qt-dependent, belongs in UI layer)
         if self.engine.hotword_provider and hasattr(self.engine.hotword_provider, "start_watching"):

@@ -13,7 +13,7 @@ from .engine import EngineConfig, VoiceEngine
 from .hotwords import HotwordManager
 from .indicator import NullIndicator
 from .platform import get_backend
-from .protocols import Recognizer, RecordingIndicator
+from .protocols import HotkeyListenerProto, Recognizer, RecordingIndicator
 from .text_processing import ChineseConverter
 
 
@@ -247,3 +247,40 @@ def create_indicator(platform: str) -> RecordingIndicator:
         except (ImportError, OSError):
             pass
     return NullIndicator()
+
+
+def create_hotkey_listener(
+    config: Config,
+    hold_on_press,
+    hold_on_release,
+    toggle_on_start=None,
+    toggle_on_stop=None,
+) -> HotkeyListenerProto:
+    """Create the hotkey listener appropriate for the session.
+
+    Backend selection (config.hotkey_backend):
+      auto    — evdev on Wayland, pynput elsewhere
+      evdev   — always evdev (Linux only, needs `input` group)
+      pynput  — always pynput
+
+    On Wayland, pynput's X11 backend only receives keys typed into XWayland
+    windows, so hotkeys silently do nothing. evdev reads /dev/input directly
+    and works everywhere, at the cost of requiring group membership.
+    """
+    backend = config.hotkey_backend
+    if backend not in ("auto", "pynput", "evdev"):
+        raise ConfigError(
+            f"hotkey_backend must be one of auto/pynput/evdev, got {backend!r}"
+        )
+    if backend == "auto":
+        backend = "evdev" if config.platform == "wayland" else "pynput"
+
+    args = (config.hotkey, hold_on_press, hold_on_release,
+            config.toggle_hotkey or None, toggle_on_start, toggle_on_stop)
+
+    if backend == "evdev":
+        from .hotkey_evdev import EvdevCombinedHotkeyListener
+        return EvdevCombinedHotkeyListener(*args)
+
+    from .hotkey import CombinedHotkeyListener
+    return CombinedHotkeyListener(*args)
