@@ -56,6 +56,7 @@ macOS 用户需要在**系统设置 → 隐私与安全性 → 辅助功能**中
 | 平台后端如何加新平台 | `voice_input_method/platform/base.py` 的 `PlatformBackend` ABC，然后参考 `x11.py`/`macos.py` 等 |
 | 热键配置和 toggle 模式 | `voice_input_method/hotkey.py` — `CombinedHotkeyListener` 在一个 Listener 里处理两个热键 |
 | Wayland 下热键为何要用 evdev | `voice_input_method/hotkey_evdev.py` — 直接读 `/dev/input`，需加入 `input` 组 |
+| Wayland 粘贴为何不用 QClipboard | `voice_input_method/platform/wayland.py` — 粘贴在工作线程上执行，改用 `wl-copy` 写 + `wl-paste` 读回校验 |
 | AI 开发规范和提交规范 | `CLAUDE.md` — 架构约束、变更同步清单、新增后端步骤（非 Claude Code 用户也应读） |
 
 **架构原则**（这一段不会变，可以信赖）：
@@ -494,7 +495,7 @@ recognizer = _create_recognizer(config)
 | 平台 | 输入方式 | 全局热键 | 注意事项 |
 |------|---------|---------|---------|
 | Linux X11 | 剪贴板 + Ctrl+V | pynput | 默认 |
-| Linux Wayland | 剪贴板 + Ctrl+V（ydotool） | **evdev** | 需安装 ydotool 并加入 `input` 组 |
+| Linux Wayland | 剪贴板（wl-copy）+ Ctrl+V（ydotool） | **evdev** | 需安装 ydotool、wl-clipboard 并加入 `input` 组 |
 | Windows | 剪贴板 + Ctrl+V | pynput | |
 | macOS | 剪贴板 + Cmd+V | pynput | 需授予辅助功能和麦克风权限 |
 
@@ -509,13 +510,15 @@ sudo usermod -aG input $USER   # 之后需重新登录
 **Wayland 文字输入**：同理，XTEST 在 Wayland 下不可用，xdotool/pynput 的按键只能送达 XWayland 客户端。改用 ydotool 经内核 uinput 注入，合成器会当作真实键盘处理，对原生 Wayland 应用同样有效：
 
 ```shell
-sudo apt install ydotool
+sudo apt install ydotool wl-clipboard
 systemctl --user enable --now ydotool   # 守护进程，同样依赖 input 组
 ```
 
-实现见 `voice_input_method/platform/wayland.py`，`check_permissions()` 会在缺少守护进程或权限时给出具体命令。
+剪贴板用 `wl-copy` 写、`wl-paste` 读回校验，确认内容已生效才发 Ctrl+V。不能用 Qt 的 `QClipboard`：`paste_text()` 跑在转写工作线程上，而 `QClipboard` 只允许在 GUI 主线程使用——Wayland 下 selection 要由 Qt 事件循环交接，工作线程的写入可能落在按键之后，粘出上一次的内容。若剪贴板始终没交接成功，则放弃发送按键（宁可不粘，也不粘错）。
 
-各平台的具体实现在 `voice_input_method/platform/{x11,wayland,windows,macos}.py`，每个文件不到 30 行。加新平台只需要继承 `PlatformBackend` 并在 `platform/__init__.py:get_backend()` 注册。
+实现见 `voice_input_method/platform/wayland.py`，`check_permissions()` 会在缺少守护进程、权限或 wl-clipboard 时给出具体命令。
+
+各平台的具体实现在 `voice_input_method/platform/{x11,wayland,windows,macos}.py`。加新平台只需要继承 `PlatformBackend` 并在 `platform/__init__.py:get_backend()` 注册。
 
 ## 自定义热词与纠错
 
