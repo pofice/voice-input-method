@@ -60,8 +60,11 @@ class Config:
     mimo_timeout: float = 60.0   # per-request HTTP timeout in seconds
 
     # Hotkey
-    hotkey: str = "scroll_lock"
-    toggle_hotkey: str = ""  # Toggle mode: press once to start, again to stop (e.g. "alt")
+    # Either name accepts a single key name or a list of them (any bound key
+    # triggers the action) — e.g. ["scroll_lock", "f6"] for keyboards that
+    # do and don't have Scroll Lock.
+    hotkey: str | list = "scroll_lock"
+    toggle_hotkey: str | list = ""  # Toggle mode: press once to start, again to stop (e.g. "alt")
     # Backend: "auto" | "pynput" | "evdev".
     # auto → evdev on Wayland (pynput can't see global keys there), pynput elsewhere.
     hotkey_backend: str = "auto"

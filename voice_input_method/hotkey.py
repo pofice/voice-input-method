@@ -7,6 +7,10 @@ import this module without error.
 Supports two concurrent hotkeys via a single pynput Listener:
   - Hold hotkey (press → start, release → stop)
   - Toggle hotkey (press once → start, press again → stop)
+
+Each of the two can be bound to more than one physical key (e.g. when you
+switch between a keyboard that has Scroll Lock and a laptop keyboard that
+doesn't) — see `_resolve_keys` / `_names_of`.
 """
 
 from __future__ import annotations
@@ -17,8 +21,13 @@ from typing import Callable
 _RELEASE_ONLY_KEYS = {"fn"}
 
 
+def _names_of(hotkey: str | list[str]) -> list[str]:
+    """Normalize a single key name or a list of them into a list."""
+    return [hotkey] if isinstance(hotkey, str) else list(hotkey)
+
+
 def _resolve_key(name: str):
-    """Resolve a hotkey name to a pynput key object. Must be called after pynput import."""
+    """Resolve a single hotkey name to a pynput key object. Must be called after pynput import."""
     from pynput import keyboard
 
     if name == "fn":
@@ -28,13 +37,34 @@ def _resolve_key(name: str):
     return keyboard.Key.f6
 
 
+def _resolve_keys(hotkey: str | list[str]) -> set:
+    """Resolve one name or a list of names to a set of pynput key objects.
+
+    Binding several physical keys to the same action is the point — any one
+    of them firing should trigger it, which is why callers match with
+    `key in targets` instead of `key == target`.
+    """
+    return {_resolve_key(name) for name in _names_of(hotkey)}
+
+
+def _any_release_only(hotkey: str | list[str]) -> bool:
+    """True if any bound key name only fires release events (e.g. "fn").
+
+    Mixing a release-only key with a normal key isn't supported — the whole
+    binding falls back to release-based toggling if any name needs it.
+    """
+    return any(name in _RELEASE_ONLY_KEYS for name in _names_of(hotkey))
+
+
 class HotkeyListener:
     """Hold mode: press → on_press, release → on_release.
 
-    For keys that only fire release (e.g. fn), auto-falls back to toggle.
+    `hotkey` accepts one name or a list of names — any of them triggers the
+    same action. For keys that only fire release (e.g. fn), auto-falls back
+    to toggle.
     """
 
-    def __init__(self, hotkey: str, on_press: Callable, on_release: Callable):
+    def __init__(self, hotkey: str | list[str], on_press: Callable, on_release: Callable):
         self._hotkey_name = hotkey
         self._on_press = on_press
         self._on_release = on_release
@@ -43,14 +73,14 @@ class HotkeyListener:
 
     def start(self) -> None:
         from pynput import keyboard
-        target = _resolve_key(self._hotkey_name)
-        use_toggle = self._hotkey_name in _RELEASE_ONLY_KEYS
+        targets = _resolve_keys(self._hotkey_name)
+        use_toggle = _any_release_only(self._hotkey_name)
 
         if use_toggle:
             def on_press(key):
                 pass
             def on_release(key):
-                if key == target:
+                if key in targets:
                     if not self._pressed:
                         self._pressed = True
                         self._on_press()
@@ -60,13 +90,13 @@ class HotkeyListener:
         else:
             def on_press(key):
                 try:
-                    if key == target and not self._pressed:
+                    if key in targets and not self._pressed:
                         self._pressed = True
                         self._on_press()
                 except AttributeError:
                     pass
             def on_release(key):
-                if key == target and self._pressed:
+                if key in targets and self._pressed:
                     self._pressed = False
                     self._on_release()
 
@@ -84,9 +114,12 @@ class HotkeyListener:
 
 
 class ToggleHotkeyListener:
-    """Toggle mode: press once → on_start, press again → on_stop."""
+    """Toggle mode: press once → on_start, press again → on_stop.
 
-    def __init__(self, hotkey: str, on_start: Callable, on_stop: Callable):
+    `hotkey` accepts one name or a list of names — any of them triggers it.
+    """
+
+    def __init__(self, hotkey: str | list[str], on_start: Callable, on_stop: Callable):
         self._hotkey_name = hotkey
         self._on_start = on_start
         self._on_stop = on_stop
@@ -95,18 +128,18 @@ class ToggleHotkeyListener:
 
     def start(self):
         from pynput import keyboard
-        target = _resolve_key(self._hotkey_name)
-        release_only = self._hotkey_name in _RELEASE_ONLY_KEYS
+        targets = _resolve_keys(self._hotkey_name)
+        release_only = _any_release_only(self._hotkey_name)
 
         if release_only:
             def on_press(key): pass
             def on_release(key):
-                if key == target:
+                if key in targets:
                     self._toggle()
         else:
             def on_press(key):
                 try:
-                    if key == target:
+                    if key in targets:
                         self._toggle()
                 except AttributeError:
                     pass
@@ -138,14 +171,20 @@ class CombinedHotkeyListener:
 
     pynput only supports one active Listener per process. This class
     merges both hotkey handlers into one Listener.
+
+    Each of `hold_hotkey`/`toggle_hotkey` accepts one name or a list of
+    names — any bound key firing triggers that action. This is for binding
+    the same action to more than one physical key (e.g. `scroll_lock` on a
+    keyboard that has it, plus a fallback like `f6` for when only the laptop's
+    built-in keyboard — which usually lacks Scroll Lock — is active).
     """
 
     def __init__(
         self,
-        hold_hotkey: str,
+        hold_hotkey: str | list[str],
         hold_on_press: Callable,
         hold_on_release: Callable,
-        toggle_hotkey: str | None = None,
+        toggle_hotkey: str | list[str] | None = None,
         toggle_on_start: Callable | None = None,
         toggle_on_stop: Callable | None = None,
     ):
@@ -164,25 +203,25 @@ class CombinedHotkeyListener:
     def start(self):
         from pynput import keyboard
 
-        hold_key = _resolve_key(self._hold_name)
-        hold_release_only = self._hold_name in _RELEASE_ONLY_KEYS
+        hold_keys = _resolve_keys(self._hold_name)
+        hold_release_only = _any_release_only(self._hold_name)
 
-        toggle_key = _resolve_key(self._toggle_name) if self._toggle_name else None
-        toggle_release_only = self._toggle_name in _RELEASE_ONLY_KEYS if self._toggle_name else False
+        toggle_keys = _resolve_keys(self._toggle_name) if self._toggle_name else set()
+        toggle_release_only = _any_release_only(self._toggle_name) if self._toggle_name else False
 
         def on_press(key):
             # Hold hotkey press (ignored while toggle-recording)
             if not hold_release_only:
                 try:
-                    if key == hold_key and not self._hold_pressed and not self._toggle_recording:
+                    if key in hold_keys and not self._hold_pressed and not self._toggle_recording:
                         self._hold_pressed = True
                         self._hold_on_press()
                 except AttributeError:
                     pass
             # Toggle hotkey press (ignored while hold-recording)
-            if toggle_key and not toggle_release_only:
+            if toggle_keys and not toggle_release_only:
                 try:
-                    if key == toggle_key and not self._hold_pressed:
+                    if key in toggle_keys and not self._hold_pressed:
                         self._do_toggle()
                 except AttributeError:
                     pass
@@ -190,7 +229,7 @@ class CombinedHotkeyListener:
         def on_release(key):
             # Hold hotkey release (or toggle-fallback for release-only keys)
             if hold_release_only:
-                if key == hold_key and not self._toggle_recording:
+                if key in hold_keys and not self._toggle_recording:
                     if not self._hold_pressed:
                         self._hold_pressed = True
                         self._hold_on_press()
@@ -198,13 +237,13 @@ class CombinedHotkeyListener:
                         self._hold_pressed = False
                         self._hold_on_release()
             else:
-                if key == hold_key and self._hold_pressed:
+                if key in hold_keys and self._hold_pressed:
                     self._hold_pressed = False
                     self._hold_on_release()
 
             # Toggle hotkey release (for release-only keys, ignored while hold-recording)
-            if toggle_key and toggle_release_only:
-                if key == toggle_key and not self._hold_pressed:
+            if toggle_keys and toggle_release_only:
+                if key in toggle_keys and not self._hold_pressed:
                     self._do_toggle()
 
         self._listener = keyboard.Listener(on_press=on_press, on_release=on_release)

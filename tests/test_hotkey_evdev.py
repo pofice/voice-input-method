@@ -68,3 +68,70 @@ def test_key_name_resolution(monkeypatch):
     assert _resolve_code("scroll_lock") == 70
     assert _resolve_code("alt") == 56
     assert _resolve_code("unknown_key") == 64  # falls back to F6
+
+
+def test_resolve_codes_accepts_single_name(monkeypatch):
+    _install_fake_evdev(monkeypatch)
+    from voice_input_method.hotkey_evdev import _resolve_code, _resolve_codes
+
+    assert _resolve_codes("f6") == {_resolve_code("f6")}
+
+
+def test_resolve_codes_accepts_list_of_names(monkeypatch):
+    """Binding the same action to several physical keys — e.g. `scroll_lock`
+    on a keyboard that has it, plus `f6` for a laptop keyboard that doesn't."""
+    _install_fake_evdev(monkeypatch)
+    from voice_input_method.hotkey_evdev import _resolve_code, _resolve_codes
+
+    codes = _resolve_codes(["scroll_lock", "f6"])
+    assert codes == {_resolve_code("scroll_lock"), _resolve_code("f6")}
+
+
+def test_combined_listener_accepts_lists_for_both_hotkeys(monkeypatch):
+    _install_fake_evdev(monkeypatch)
+    from voice_input_method.hotkey_evdev import EvdevCombinedHotkeyListener
+
+    listener = EvdevCombinedHotkeyListener(
+        hold_hotkey=["scroll_lock", "f6"],
+        hold_on_press=lambda: None,
+        hold_on_release=lambda: None,
+        toggle_hotkey=["alt", "f7"],
+        toggle_on_start=lambda: None,
+        toggle_on_stop=lambda: None,
+    )
+    assert listener.hold_pressed is False
+    assert listener.toggle_recording is False
+
+
+def test_handle_dispatches_from_either_bound_key(monkeypatch):
+    """A press on *any* key in the hold list must trigger hold_on_press —
+    this is the actual behavior the feature is for, not just construction."""
+    fake = _install_fake_evdev(monkeypatch)
+    from voice_input_method.hotkey_evdev import EvdevCombinedHotkeyListener, _resolve_codes
+
+    presses = []
+    listener = EvdevCombinedHotkeyListener(
+        hold_hotkey=["scroll_lock", "f6"],
+        hold_on_press=lambda: presses.append("press"),
+        hold_on_release=lambda: presses.append("release"),
+    )
+    hold_codes = _resolve_codes(["scroll_lock", "f6"])
+    toggle_codes = set()
+
+    press_event = types.SimpleNamespace(type=fake.ecodes.EV_KEY, code=fake.ecodes.KEY_F6, value=1)
+    release_event = types.SimpleNamespace(type=fake.ecodes.EV_KEY, code=fake.ecodes.KEY_F6, value=0)
+    listener._handle(press_event, hold_codes, toggle_codes)
+    assert presses == ["press"]
+    assert listener.hold_pressed is True
+    listener._handle(release_event, hold_codes, toggle_codes)
+    assert presses == ["press", "release"]
+    assert listener.hold_pressed is False
+
+    # Now trigger via the *other* bound key (scroll_lock) — same action.
+    presses.clear()
+    press_event2 = types.SimpleNamespace(
+        type=fake.ecodes.EV_KEY, code=fake.ecodes.KEY_SCROLLLOCK, value=1
+    )
+    listener._handle(press_event2, hold_codes, toggle_codes)
+    assert presses == ["press"]
+    assert listener.hold_pressed is True

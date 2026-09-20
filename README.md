@@ -119,7 +119,11 @@ voice-input --device 2                      # 指定麦克风设备（索引号�
 
 **运行时切换麦克风**：在窗口上右键打开菜单 →「切换麦克风」，选择其他输入设备，无需重启。
 
-热键在 `config.yaml` 的 `hotkey` 和 `toggle_hotkey` 里配置。
+热键在 `config.yaml` 的 `hotkey` 和 `toggle_hotkey` 里配置，两者都可以填一个键名，也可以填一个键名列表——列表里任意一个键触发的都是同一个动作。用来解决"外接键盘有 Scroll Lock，笔记本自带键盘没有"这类场景：
+
+```yaml
+hotkey: [scroll_lock, f6]   # 插外接键盘用 scroll_lock，用笔记本自带键盘时用 f6
+```
 
 ### CLI 模式（AI / 脚本 / CI）
 

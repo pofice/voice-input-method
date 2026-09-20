@@ -39,11 +39,22 @@ _KEY_PRESS = 1
 
 
 def _resolve_code(name: str) -> int:
-    """Map a hotkey name to an evdev key code. Falls back to F6."""
+    """Map a single hotkey name to an evdev key code. Falls back to F6."""
     from evdev import ecodes
 
     key_name = _KEY_NAMES.get(name, "KEY_F6")
     return getattr(ecodes, key_name, ecodes.KEY_F6)
+
+
+def _resolve_codes(hotkey: str | list[str]) -> set[int]:
+    """Resolve one name or a list of names to a set of evdev key codes.
+
+    Binding several physical keys to the same action (e.g. `scroll_lock` on
+    a keyboard that has it, plus `f6` for when only a laptop's built-in
+    keyboard is plugged in) means matching against a set, not a single code.
+    """
+    names = [hotkey] if isinstance(hotkey, str) else list(hotkey)
+    return {_resolve_code(name) for name in names}
 
 
 def find_keyboards() -> list:
@@ -72,15 +83,17 @@ def find_keyboards() -> list:
 class EvdevCombinedHotkeyListener:
     """Hold + toggle hotkeys read straight from the kernel input layer.
 
-    Interface-compatible with hotkey.CombinedHotkeyListener.
+    Interface-compatible with hotkey.CombinedHotkeyListener. Each of
+    `hold_hotkey`/`toggle_hotkey` accepts one name or a list of names — any
+    bound key firing triggers that action (see `_resolve_codes`).
     """
 
     def __init__(
         self,
-        hold_hotkey: str,
+        hold_hotkey: str | list[str],
         hold_on_press: Callable,
         hold_on_release: Callable,
-        toggle_hotkey: str | None = None,
+        toggle_hotkey: str | list[str] | None = None,
         toggle_on_start: Callable | None = None,
         toggle_on_stop: Callable | None = None,
     ):
@@ -112,8 +125,8 @@ class EvdevCombinedHotkeyListener:
         self._thread.start()
 
     def _run(self) -> None:
-        hold_code = _resolve_code(self._hold_name)
-        toggle_code = _resolve_code(self._toggle_name) if self._toggle_name else None
+        hold_codes = _resolve_codes(self._hold_name)
+        toggle_codes = _resolve_codes(self._toggle_name) if self._toggle_name else set()
 
         sel = selectors.DefaultSelector()
         for dev in self._devices:
@@ -123,7 +136,7 @@ class EvdevCombinedHotkeyListener:
                 # Timeout keeps stop() responsive even when no keys are pressed
                 for key, _ in sel.select(timeout=0.2):
                     for event in key.fileobj.read():
-                        self._handle(event, hold_code, toggle_code)
+                        self._handle(event, hold_codes, toggle_codes)
         finally:
             sel.close()
             for dev in self._devices:
@@ -133,14 +146,14 @@ class EvdevCombinedHotkeyListener:
                     pass
             self._devices = []
 
-    def _handle(self, event, hold_code: int, toggle_code: int | None) -> None:
+    def _handle(self, event, hold_codes: set[int], toggle_codes: set[int]) -> None:
         from evdev import ecodes
 
         if event.type != ecodes.EV_KEY or event.value not in (_KEY_PRESS, _KEY_RELEASE):
             return
 
         # Hold hotkey — suppressed while a toggle recording is in progress
-        if event.code == hold_code and not self._toggle_recording:
+        if event.code in hold_codes and not self._toggle_recording:
             if event.value == _KEY_PRESS and not self._hold_pressed:
                 self._hold_pressed = True
                 self._hold_on_press()
@@ -150,8 +163,8 @@ class EvdevCombinedHotkeyListener:
 
         # Toggle hotkey — suppressed while holding, and only on press
         if (
-            toggle_code is not None
-            and event.code == toggle_code
+            toggle_codes
+            and event.code in toggle_codes
             and event.value == _KEY_PRESS
             and not self._hold_pressed
         ):

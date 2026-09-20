@@ -7,7 +7,7 @@
 # sensevoice-lm: SenseVoice CTC + KenLM rescoring, better accuracy than greedy decode
 # sherpa-nano: LLM-based, best accuracy for dialects/accents, requires sherpa-onnx
 # qwen3-asr: LLM-based, 52 languages + 22 Chinese dialects, SOTA accuracy, requires sherpa-onnx
-recognizer_backend: sherpa-nano
+recognizer_backend: funasr
 
 # ASR Model
 # model_type: "seaco_paraformer" (supports hotwords)
@@ -16,7 +16,7 @@ model_type: seaco_paraformer
 # Path to the FunASR model directory.
 # Download with: modelscope download --model pofice/speech_seaco_paraformer_large_onnx
 # Leave empty to use the default modelscope cache path.
-model_dir: ""
+model_dir: "/home/pofice/Desktop/voice-input-method/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch"
 
 # Use INT8 quantization for faster inference (recommended)
 quantize: true
@@ -62,17 +62,30 @@ mimo_language: "Auto"   # Auto / Chinese / English
 mimo_timeout: 60.0      # per-request HTTP timeout in seconds
 
 # Audio recording
-sample_rate: 44100
-channels: 2
+sample_rate: 16000
+channels: 1
 
 # Global hotkey to trigger voice input (hold to record, release to transcribe)
 # Options: scroll_lock, pause, f6, f7, f8, f9, f10, f11, f12, fn (macOS only, toggle mode)
-hotkey: fn
+# Can also be a list of keys — any one of them triggers the same action.
+# Useful when you switch between keyboards that have different keys available
+# (e.g. an external keyboard with Scroll Lock vs. a laptop's built-in one
+# that usually doesn't have it):
+#   hotkey: [scroll_lock, f6]
+hotkey: alt
 
 # Toggle hotkey: press once to start recording, press again to stop and transcribe.
 # Useful for long recordings. Leave empty to disable.
 # Options: alt (macOS Option key), alt_r, caps_lock, f6-f12, etc.
-toggle_hotkey: alt
+# Also accepts a list, same as `hotkey` above.
+toggle_hotkey: f7
+
+# Hotkey backend: "auto" | "pynput" | "evdev"
+# auto   — Wayland 用 evdev，其他平台用 pynput
+# pynput — 用户态监听，无需额外权限；但在 Wayland 下只能收到 XWayland 窗口的按键
+# evdev  — 直接读 /dev/input，Wayland 下唯一可用的全局热键方案
+#          需要加入 input 组：sudo usermod -aG input $USER（之后重新登录）
+hotkey_backend: auto
 
 # UI
 window_title: Rtxime
@@ -107,12 +120,12 @@ strip_trailing_punctuation: true # Remove trailing 。！？，. etc. from recog
 # Also helps encoder backends (funasr, sensevoice) avoid memory issues.
 enable_vad: true
 vad_max_speech_duration: 15    # max seconds per segment (15s safe for all backends)
-# vad_model_path: ""           # path to silero_vad.onnx (auto-detected from ./silero_vad.onnx, ./models/, ~/.cache/sherpa-onnx/)
+vad_model_path: "silero_vad.onnx"
 # Download: wget https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx
 
 # Platform override (auto-detected if empty)
 # Options: x11, wayland, windows, macos
-platform: ""
+platform: wayland
 
 # Resource file names (searched in CWD first, then package resources/)
 hotwords_file: hotwords.txt
