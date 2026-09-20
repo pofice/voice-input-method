@@ -16,7 +16,13 @@ from __future__ import annotations
 
 import selectors
 import threading
+import time
 from typing import Callable
+
+# How often to check /dev/input for keyboards plugged in after start() —
+# e.g. docking/undocking a laptop. Piggybacks on the selector's existing
+# 0.2s poll timeout, so this doesn't add a second thread or timer.
+_RESCAN_INTERVAL = 3.0
 
 # Hotkey name -> evdev key code name. Keeps config.yaml's vocabulary
 # (shared with the pynput backend) independent of evdev's KEY_* spelling.
@@ -131,12 +137,28 @@ class EvdevCombinedHotkeyListener:
         sel = selectors.DefaultSelector()
         for dev in self._devices:
             sel.register(dev, selectors.EVENT_READ)
+        last_rescan = time.monotonic()
         try:
             while not self._stop_event.is_set():
-                # Timeout keeps stop() responsive even when no keys are pressed
+                # Timeout keeps stop() responsive even when no keys are pressed,
+                # and doubles as the tick for the hotplug rescan below.
                 for key, _ in sel.select(timeout=0.2):
-                    for event in key.fileobj.read():
-                        self._handle(event, hold_codes, toggle_codes)
+                    dev = key.fileobj
+                    try:
+                        for event in dev.read():
+                            self._handle(event, hold_codes, toggle_codes)
+                    except OSError:
+                        # Device unplugged mid-read (e.g. undocking a laptop).
+                        # Without this, an uncaught OSError here kills the whole
+                        # thread — every hotkey stops working until the app is
+                        # restarted, even ones bound to a keyboard that's still
+                        # plugged in. Drop just this device and keep going.
+                        self._drop_device(sel, dev)
+
+                now = time.monotonic()
+                if now - last_rescan >= _RESCAN_INTERVAL:
+                    last_rescan = now
+                    self._rescan_keyboards(sel)
         finally:
             sel.close()
             for dev in self._devices:
@@ -145,6 +167,37 @@ class EvdevCombinedHotkeyListener:
                 except OSError:
                     pass
             self._devices = []
+
+    def _drop_device(self, sel: selectors.BaseSelector, dev) -> None:
+        """Stop watching a device that just disappeared (unplugged)."""
+        try:
+            sel.unregister(dev)
+        except KeyError:
+            pass
+        try:
+            dev.close()
+        except OSError:
+            pass
+        if dev in self._devices:
+            self._devices.remove(dev)
+
+    def _rescan_keyboards(self, sel: selectors.BaseSelector) -> None:
+        """Pick up keyboards plugged in after start() (e.g. docking/undocking
+        a laptop, or switching from the built-in keyboard to an external one
+        with keys the built-in one lacks, like Scroll Lock).
+
+        find_keyboards() opens a fresh handle for every keyboard it finds,
+        including ones we already have open — those redundant duplicates are
+        closed right back here instead of being kept, so this doesn't leak a
+        second file descriptor per already-known device on every rescan.
+        """
+        known_paths = {dev.path for dev in self._devices}
+        for dev in find_keyboards():
+            if dev.path in known_paths:
+                dev.close()
+                continue
+            self._devices.append(dev)
+            sel.register(dev, selectors.EVENT_READ)
 
     def _handle(self, event, hold_codes: set[int], toggle_codes: set[int]) -> None:
         from evdev import ecodes

@@ -135,3 +135,117 @@ def test_handle_dispatches_from_either_bound_key(monkeypatch):
     listener._handle(press_event2, hold_codes, toggle_codes)
     assert presses == ["press"]
     assert listener.hold_pressed is True
+
+
+class _FakeDevice:
+    """Stand-in for evdev.InputDevice in hotplug tests — only .path and .close() matter."""
+
+    def __init__(self, path):
+        self.path = path
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
+
+class _FakeSelector:
+    """Stand-in for selectors.BaseSelector — records register/unregister calls
+    instead of touching real file descriptors."""
+
+    def __init__(self):
+        self.registered = []
+
+    def register(self, fileobj, events):
+        self.registered.append(fileobj)
+
+    def unregister(self, fileobj):
+        if fileobj not in self.registered:
+            raise KeyError(fileobj)
+        self.registered.remove(fileobj)
+
+
+class TestHotplug:
+    """Keyboards plugged/unplugged after start() — e.g. switching between an
+    external keyboard and a laptop's built-in one mid-session."""
+
+    def test_drop_device_unregisters_closes_and_forgets(self, monkeypatch):
+        _install_fake_evdev(monkeypatch)
+        from voice_input_method.hotkey_evdev import EvdevCombinedHotkeyListener
+
+        listener = EvdevCombinedHotkeyListener("f6", lambda: None, lambda: None)
+        dev = _FakeDevice("/dev/input/event3")
+        listener._devices = [dev]
+        sel = _FakeSelector()
+        sel.registered = [dev]
+
+        listener._drop_device(sel, dev)
+
+        assert dev.closed is True
+        assert dev not in listener._devices
+        assert dev not in sel.registered
+
+    def test_drop_device_is_safe_when_already_unregistered(self, monkeypatch):
+        """Must not raise even if the selector never had this device —
+        an uncaught error here is exactly what used to kill the whole
+        listener thread when a keyboard was unplugged mid-read."""
+        _install_fake_evdev(monkeypatch)
+        from voice_input_method.hotkey_evdev import EvdevCombinedHotkeyListener
+
+        listener = EvdevCombinedHotkeyListener("f6", lambda: None, lambda: None)
+        dev = _FakeDevice("/dev/input/event3")
+        listener._devices = [dev]
+        sel = _FakeSelector()  # empty — dev was never registered
+
+        listener._drop_device(sel, dev)  # must not raise
+
+        assert dev.closed is True
+        assert dev not in listener._devices
+
+    def test_rescan_registers_new_device_and_closes_duplicate_handles(self, monkeypatch):
+        """A keyboard plugged in after start() gets picked up; a redundant
+        fresh handle to one we already have open gets closed, not kept
+        (find_keyboards() opens a new fd for every device on every call,
+        including ones already tracked)."""
+        _install_fake_evdev(monkeypatch)
+        from voice_input_method import hotkey_evdev
+        from voice_input_method.hotkey_evdev import EvdevCombinedHotkeyListener
+
+        already_open = _FakeDevice("/dev/input/event3")
+        redundant_handle_of_already_open = _FakeDevice("/dev/input/event3")
+        newly_plugged_in = _FakeDevice("/dev/input/event7")
+
+        listener = EvdevCombinedHotkeyListener("f6", lambda: None, lambda: None)
+        listener._devices = [already_open]
+        sel = _FakeSelector()
+        sel.registered = [already_open]
+        monkeypatch.setattr(
+            hotkey_evdev,
+            "find_keyboards",
+            lambda: [redundant_handle_of_already_open, newly_plugged_in],
+        )
+
+        listener._rescan_keyboards(sel)
+
+        assert newly_plugged_in in listener._devices
+        assert newly_plugged_in in sel.registered
+        assert redundant_handle_of_already_open.closed is True
+        assert redundant_handle_of_already_open not in listener._devices
+
+    def test_rescan_with_no_new_devices_is_a_no_op(self, monkeypatch):
+        _install_fake_evdev(monkeypatch)
+        from voice_input_method import hotkey_evdev
+        from voice_input_method.hotkey_evdev import EvdevCombinedHotkeyListener
+
+        already_open = _FakeDevice("/dev/input/event3")
+        redundant_handle = _FakeDevice("/dev/input/event3")
+
+        listener = EvdevCombinedHotkeyListener("f6", lambda: None, lambda: None)
+        listener._devices = [already_open]
+        sel = _FakeSelector()
+        sel.registered = [already_open]
+        monkeypatch.setattr(hotkey_evdev, "find_keyboards", lambda: [redundant_handle])
+
+        listener._rescan_keyboards(sel)
+
+        assert listener._devices == [already_open]
+        assert sel.registered == [already_open]

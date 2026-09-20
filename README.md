@@ -509,6 +509,8 @@ recognizer = _create_recognizer(config)
 sudo usermod -aG input $USER   # 之后需重新登录
 ```
 
+**evdev 后端支持键盘热插拔**：运行中拔插键盘（比如笔记本插拔外接键盘、坞站上下）不需要重启程序——新插入的键盘每隔几秒会被自动扫描到；被拔掉的键盘会被安全丢弃，不影响其他还连着的键盘继续响应热键。pynput 后端（X11/Windows/macOS）不需要这个机制，它监听的是显示服务器/系统级输入事件而不是具体设备文件，热插拔天然透明。
+
 后端可用 `config.yaml` 的 `hotkey_backend` 覆盖（`auto` / `pynput` / `evdev`）。未加入 `input` 组时热键不可用，但 GUI 按钮仍可正常录音。
 
 **Wayland 文字输入**：同理，XTEST 在 Wayland 下不可用，xdotool/pynput 的按键只能送达 XWayland 客户端。改用 ydotool 经内核 uinput 注入，合成器会当作真实键盘处理，对原生 Wayland 应用同样有效：
