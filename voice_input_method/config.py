@@ -26,6 +26,7 @@ class Config:
     # Audio
     sample_rate: int = 44100
     channels: int = 2
+    audio_latency: str | float = "low"  # "low", "high", or requested seconds
 
     # Recognizer backend: "funasr", "sherpa-sensevoice", "sensevoice-lm",
     # "sherpa-nano", "qwen3-asr", "remote-mimo"

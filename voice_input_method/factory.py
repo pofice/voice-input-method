@@ -209,6 +209,7 @@ def create_engine(
     recorder = AudioRecorder(
         sample_rate=config.sample_rate,
         channels=config.channels,
+        latency=config.audio_latency,
         on_chunk=None,
         chunk_samples=chunk_samples,
     )

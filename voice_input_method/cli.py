@@ -209,6 +209,8 @@ def cmd_listen(args: argparse.Namespace) -> int:
         samplerate=sample_rate,
         channels=channels,
         callback=callback,
+        latency=config.audio_latency,
+        blocksize=0,
     )
 
     print("Recording... (press Enter to stop)", file=sys.stderr, flush=True)

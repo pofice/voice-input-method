@@ -1,5 +1,10 @@
 """Tests for hotkey module — verifies the HotkeyListener interface without pynput."""
 
+import sys
+from types import SimpleNamespace
+
+import pytest
+
 from voice_input_method.hotkey import (
     CombinedHotkeyListener,
     HotkeyListener,
@@ -8,6 +13,15 @@ from voice_input_method.hotkey import (
     _resolve_key,
     _resolve_keys,
 )
+
+
+@pytest.fixture
+def keyboard_keys(monkeypatch):
+    """Resolve names without importing the optional GUI dependency or opening X11."""
+    keys = SimpleNamespace(f6=object(), scroll_lock=object())
+    pynput = SimpleNamespace(keyboard=SimpleNamespace(Key=keys))
+    monkeypatch.setitem(sys.modules, "pynput", pynput)
+    return keys
 
 
 class TestHotkeyListener:
@@ -52,12 +66,13 @@ class TestMultiKeyResolution:
         assert _names_of("f6") == ["f6"]
         assert _names_of(["f6", "scroll_lock"]) == ["f6", "scroll_lock"]
 
-    def test_resolve_keys_single_name_matches_resolve_key(self):
+    def test_resolve_keys_single_name_matches_resolve_key(self, keyboard_keys):
         assert _resolve_keys("f6") == {_resolve_key("f6")}
+        assert _resolve_keys("f6") == {keyboard_keys.f6}
 
-    def test_resolve_keys_list_resolves_every_name(self):
+    def test_resolve_keys_list_resolves_every_name(self, keyboard_keys):
         targets = _resolve_keys(["f6", "scroll_lock"])
-        assert targets == {_resolve_key("f6"), _resolve_key("scroll_lock")}
+        assert targets == {keyboard_keys.f6, keyboard_keys.scroll_lock}
 
     def test_any_release_only_true_for_single_release_only_key(self):
         assert _any_release_only("fn") is True
