@@ -13,6 +13,7 @@ class TestConfig:
         assert c.model_type == "seaco_paraformer"
         assert c.quantize is True
         assert c.sample_rate == 44100
+        assert c.audio_latency == "low"
         assert c.streaming is False
 
     def test_load_from_yaml(self, tmp_path):
@@ -22,12 +23,14 @@ class TestConfig:
             "streaming": True,
             "hotkey": "f9",
             "window_title": "Test",
+            "audio_latency": 0.02,
         }))
         c = load_config(str(config_file))
         assert c.model_type == "paraformer"
         assert c.streaming is True
         assert c.hotkey == "f9"
         assert c.window_title == "Test"
+        assert c.audio_latency == 0.02
 
     def test_load_missing_file(self):
         c = load_config("/nonexistent/config.yaml")

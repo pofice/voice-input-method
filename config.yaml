@@ -62,6 +62,7 @@ mimo_language: "Auto"   # Auto / Chinese / English
 mimo_timeout: 60.0      # per-request HTTP timeout in seconds
 
 # Audio recording
+audio_latency: low  # Capture buffer: low / high / seconds (e.g. 0.01). Use high if audio drops.
 sample_rate: 16000
 channels: 1
 

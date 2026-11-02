@@ -4,6 +4,7 @@ import os
 from unittest.mock import MagicMock
 
 import numpy as np
+import pytest
 import soundfile as sf
 
 from voice_input_method.audio import AudioRecorder, resample_to_16k_mono
@@ -55,6 +56,26 @@ class TestAudioRecorderWithMocks:
         rec = AudioRecorder(sample_rate=44100, channels=2)
         rec._sd = mock_sd
         return rec
+
+    @pytest.mark.parametrize("latency", ["low", "high", 0.01])
+    def test_capture_latency_preserved_on_open_and_switch(self, latency):
+        mock_sd = MagicMock()
+        mock_sd.query_devices.return_value = {
+            "max_input_channels": 1, "default_samplerate": 16000,
+        }
+        rec = AudioRecorder(latency=latency)
+        rec._sd = mock_sd
+        rec._open_stream()
+        assert mock_sd.InputStream.call_args.kwargs["latency"] == latency
+        assert mock_sd.InputStream.call_args.kwargs["blocksize"] == 0
+        rec.switch_device(3)
+        assert mock_sd.InputStream.call_args.kwargs["latency"] == latency
+        assert mock_sd.InputStream.call_args.kwargs["blocksize"] == 0
+
+    @pytest.mark.parametrize("latency", ["invalid", 0, -0.1, True, None, float("nan"), float("inf")])
+    def test_invalid_capture_latency(self, latency):
+        with pytest.raises(ValueError, match="audio_latency"):
+            AudioRecorder(latency=latency)
 
     def test_switch_device(self):
         mock_sd = MagicMock()
@@ -277,6 +298,7 @@ class TestAudioRecorderWithMocks:
         rec.channels = 2
         stream = rec._open_stream()
         assert stream is mock_stream
+        assert all(call.kwargs["latency"] == "low" for call in mock_sd.InputStream.call_args_list)
 
     def test_open_stream_all_fail(self):
         mock_sd = MagicMock()

@@ -424,6 +424,7 @@ vad_max_speech_duration: 15    # 每段最长秒数
 | 功能 | 默认 | 配置项 |
 |------|------|--------|
 | 降噪（识别前） | 开 | `enable_noise_reduction` |
+| 低延迟音频采集 | 开 | `audio_latency`：`low` / `high` / 秒数（如 `0.01`）；断音时可调高 |
 | 热词增强 | 开 | `enable_hotwords` + `hotwords.txt` |
 | 热词纠错（`wrong -> right`） | 开 | `hotwords.txt` 中的纠错规则 |
 | 繁简转换 | 开 | `enable_traditional_chinese` |

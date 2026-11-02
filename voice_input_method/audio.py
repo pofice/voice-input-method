@@ -39,14 +39,23 @@ def resample_to_16k_mono(data: np.ndarray, orig_sr: int, channels: int) -> np.nd
 class AudioRecorder:
     def __init__(self, sample_rate: int = 44100, channels: int = 2,
                  on_chunk: Callable[[np.ndarray], None] | None = None,
-                 chunk_samples: int = 0):
+                 chunk_samples: int = 0,
+                 latency: str | float = "low"):
         """
         Args:
             sample_rate: Target recording sample rate.
             channels: Target number of channels.
             on_chunk: Callback for streaming mode. Called with 16kHz mono chunks.
             chunk_samples: Number of 16kHz samples per streaming chunk (0 = no streaming).
+            latency: Requested capture latency: "low", "high", or seconds.
         """
+        if not (
+            isinstance(latency, str) and latency in ("low", "high")
+            or isinstance(latency, (int, float))
+            and not isinstance(latency, bool) and np.isfinite(latency) and latency > 0
+        ):
+            raise ValueError('audio_latency must be "low", "high", or positive seconds')
+        self._latency = latency
         self._target_sample_rate = sample_rate
         self._target_channels = channels
         self.sample_rate: int = sample_rate
@@ -117,7 +126,10 @@ class AudioRecorder:
         ]
         for params in attempts:
             try:
-                stream = sd.InputStream(callback=self._audio_callback, **params)
+                # Let the host choose block sizes; fixed blocks can add buffering.
+                stream = sd.InputStream(
+                    callback=self._audio_callback, latency=self._latency, blocksize=0, **params
+                )
                 if params:
                     self.sample_rate = params.get("samplerate", self.sample_rate)
                     self.channels = params.get("channels", self.channels)
@@ -258,6 +270,8 @@ class AudioRecorder:
                 samplerate=self.sample_rate,
                 channels=self.channels,
                 callback=self._audio_callback,
+                latency=self._latency,
+                blocksize=0,
             )
             self.stream.start()
         except Exception as e:
