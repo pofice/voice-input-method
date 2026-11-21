@@ -66,7 +66,7 @@ class Config:
     # do and don't have Scroll Lock.
     hotkey: str | list = "scroll_lock"
     toggle_hotkey: str | list = ""  # Toggle mode: press once to start, again to stop (e.g. "alt")
-    # Backend: "auto" | "pynput" | "evdev".
+    # Backend: "auto" | "pynput" | "evdev" | "keyboard".
     # auto → evdev on Wayland (pynput can't see global keys there), pynput elsewhere.
     hotkey_backend: str = "auto"
 

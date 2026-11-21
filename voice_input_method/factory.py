@@ -260,18 +260,19 @@ def create_hotkey_listener(
     """Create the hotkey listener appropriate for the session.
 
     Backend selection (config.hotkey_backend):
-      auto    — evdev on Wayland, pynput elsewhere
-      evdev   — always evdev (Linux only, needs `input` group)
-      pynput  — always pynput
+      auto     — evdev on Wayland, pynput elsewhere
+      evdev    — always evdev (Linux only, needs `input` group)
+      pynput   — always pynput
+      keyboard — Windows ``keyboard`` hooks (supports suppressed CapsLock)
 
     On Wayland, pynput's X11 backend only receives keys typed into XWayland
     windows, so hotkeys silently do nothing. evdev reads /dev/input directly
     and works everywhere, at the cost of requiring group membership.
     """
     backend = config.hotkey_backend
-    if backend not in ("auto", "pynput", "evdev"):
+    if backend not in ("auto", "pynput", "evdev", "keyboard"):
         raise ConfigError(
-            f"hotkey_backend must be one of auto/pynput/evdev, got {backend!r}"
+            f"hotkey_backend must be one of auto/pynput/evdev/keyboard, got {backend!r}"
         )
     if backend == "auto":
         backend = "evdev" if config.platform == "wayland" else "pynput"
@@ -282,6 +283,12 @@ def create_hotkey_listener(
     if backend == "evdev":
         from .hotkey_evdev import EvdevCombinedHotkeyListener
         return EvdevCombinedHotkeyListener(*args)
+
+    if backend == "keyboard":
+        if config.platform != "windows":
+            raise ConfigError("hotkey_backend=keyboard is only supported on Windows")
+        from .hotkey_windows import WindowsKeyboardHotkeyListener
+        return WindowsKeyboardHotkeyListener(*args)
 
     from .hotkey import CombinedHotkeyListener
     return CombinedHotkeyListener(*args)

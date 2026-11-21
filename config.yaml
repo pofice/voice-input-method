@@ -67,7 +67,7 @@ sample_rate: 16000
 channels: 1
 
 # Global hotkey to trigger voice input (hold to record, release to transcribe)
-# Options: scroll_lock, pause, f6, f7, f8, f9, f10, f11, f12, fn (macOS only, toggle mode)
+# Options: caps_lock (Windows + keyboard backend), scroll_lock, pause, f6, f7, f8, f9, f10, f11, f12, fn (macOS only, toggle mode)
 # Can also be a list of keys — any one of them triggers the same action.
 # Useful when you switch between keyboards that have different keys available
 # (e.g. an external keyboard with Scroll Lock vs. a laptop's built-in one
