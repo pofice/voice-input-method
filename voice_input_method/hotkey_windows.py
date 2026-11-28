@@ -6,7 +6,6 @@ import threading
 import time
 from typing import Callable
 
-
 _SHORT_PRESS_THRESHOLD = 0.3
 
 

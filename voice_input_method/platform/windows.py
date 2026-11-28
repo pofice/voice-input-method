@@ -10,7 +10,6 @@ from pynput.keyboard import Controller, Key
 
 from .base import PlatformBackend
 
-
 _CF_UNICODETEXT = 13
 _GMEM_MOVEABLE = 0x0002
 
@@ -70,13 +69,11 @@ class WindowsBackend(PlatformBackend):
                     break
                 time.sleep(0.01)
             if not opened:
-                self._kernel32.GlobalFree(handle)
                 return False
 
             self._user32.EmptyClipboard()
             # Ownership transfers to Windows on success; do not free handle.
             if not self._user32.SetClipboardData(_CF_UNICODETEXT, handle):
-                self._kernel32.GlobalFree(handle)
                 return False
             handle = None
             return True
