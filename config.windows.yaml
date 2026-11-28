@@ -1,0 +1,10 @@
+# Windows 本地语音输入配置；模型使用已下载的默认缓存。
+recognizer_backend: funasr
+model_type: seaco_paraformer
+model_dir: ""
+quantize: true
+hotkey: caps_lock
+toggle_hotkey: f7
+hotkey_backend: keyboard
+platform: windows
+window_title: Voice Input Method

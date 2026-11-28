@@ -21,6 +21,7 @@ dependencies = [
 
 [project.optional-dependencies]
 gui = ["PySide6>=6.5", "pynput>=1.7"]
+windows = ["keyboard>=0.13"]
 macos = ["pyobjc-framework-ApplicationServices", "pyobjc-framework-Cocoa"]
 sherpa = ["sherpa-onnx>=1.12"]
 linux = ["evdev>=1.6"]  # evdev hotkey backend (required on Wayland)

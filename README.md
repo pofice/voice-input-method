@@ -77,6 +77,7 @@ macOS 用户需要在**系统设置 → 隐私与安全性 → 辅助功能**中
 
 ```shell
 pip install .                    # 基础安装（funasr-onnx SeacoParaformer 默认后端）
+pip install -e ".[gui,windows]"   # Windows GUI + CapsLock 热键
 pip install -e ".[dev]"          # 开发环境（pytest + ruff）
 pip install ".[sherpa]"          # SenseVoice / Fun-ASR-Nano / Qwen3-ASR 后端（需 sherpa-onnx）
 pip install ".[macos]"           # macOS 录音指示器（需 PyObjC）
@@ -501,7 +502,7 @@ recognizer = _create_recognizer(config)
 |------|---------|---------|---------|
 | Linux X11 | 剪贴板 + Ctrl+V | pynput | 默认 |
 | Linux Wayland | 剪贴板（wl-copy）+ Ctrl+V（ydotool） | **evdev** | 需安装 ydotool、wl-clipboard 并加入 `input` 组 |
-| Windows | 剪贴板 + Ctrl+V | pynput | |
+| Windows | 剪贴板 + Ctrl+V | pynput / **keyboard** | CapsLock 推荐使用 `keyboard` 后端 |
 | macOS | 剪贴板 + Cmd+V | pynput | 需授予辅助功能和麦克风权限 |
 
 **Wayland 全局热键**：Wayland 不允许应用监听未获焦点的按键，pynput 的 X11 后端只能收到 XWayland 窗口里的按键，热键会静默失效。因此 Wayland 下默认改用 evdev 直接读 `/dev/input`：
@@ -512,7 +513,7 @@ sudo usermod -aG input $USER   # 之后需重新登录
 
 **evdev 后端支持键盘热插拔**：运行中拔插键盘（比如笔记本插拔外接键盘、坞站上下）不需要重启程序——新插入的键盘每隔几秒会被自动扫描到；被拔掉的键盘会被安全丢弃，不影响其他还连着的键盘继续响应热键。pynput 后端（X11/Windows/macOS）不需要这个机制，它监听的是显示服务器/系统级输入事件而不是具体设备文件，热插拔天然透明。
 
-后端可用 `config.yaml` 的 `hotkey_backend` 覆盖（`auto` / `pynput` / `evdev`）。未加入 `input` 组时热键不可用，但 GUI 按钮仍可正常录音。
+后端可用 `config.yaml` 的 `hotkey_backend` 覆盖（`auto` / `pynput` / `evdev` / `keyboard`）。Windows 使用 CapsLock 时配置 `hotkey: caps_lock` 和 `hotkey_backend: keyboard`；安装依赖：`pip install -e ".[gui,windows]"`。`keyboard` 后端会拦截 CapsLock，避免录音时切换大小写。未加入 `input` 组时热键不可用，但 GUI 按钮仍可正常录音。
 
 **Wayland 文字输入**：同理，XTEST 在 Wayland 下不可用，xdotool/pynput 的按键只能送达 XWayland 客户端。改用 ydotool 经内核 uinput 注入，合成器会当作真实键盘处理，对原生 Wayland 应用同样有效：
 
